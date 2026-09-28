@@ -33,8 +33,6 @@ async function vgApi(path) {
   return d;
 }
 
-// /manage is never a client screen. A signed-in athlete who follows an old management URL
-// is returned to the full workout app instead of seeing invites/workspaces/admin internals.
 async function vgGuardManagement() {
   try {
     const me = await vgApi('/api/me');
@@ -42,10 +40,22 @@ async function vgGuardManagement() {
     const allowed = !!me.user?.is_platform_admin || memberships.some(m => ['owner', 'admin', 'trainer'].includes(m.role));
     if (!allowed) location.replace('/');
   } catch {
-    // Not signed in: leave the management login visible. Authorization is still server-side.
+    // Unauthenticated management login is allowed; permissions are enforced by the API.
   }
 }
 vgGuardManagement();
+
+function vgPatchManagementNav() {
+  const training = document.querySelector('[data-tab="training"]');
+  if (training && training.dataset.realApp !== '1') {
+    training.dataset.realApp = '1';
+    training.textContent = 'Training App';
+    training.onclick = e => {
+      e.preventDefault();
+      location.href = '/';
+    };
+  }
+}
 
 async function vgRenderInviteHistory() {
   const host = document.querySelector('#inviteResult');
@@ -124,9 +134,11 @@ if (inviteFromUrl) {
 }
 
 const observer = new MutationObserver(() => {
+  vgPatchManagementNav();
   if (document.querySelector('#inviteResult') && !document.querySelector('#vgInviteHistory')) vgRenderInviteHistory();
 });
 observer.observe(document.documentElement, { childList: true, subtree: true });
+vgPatchManagementNav();
 
 document.addEventListener('change', e => {
   if (e.target?.id === 'inviteWorkspace') vgRenderInviteHistory();
