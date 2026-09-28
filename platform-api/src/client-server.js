@@ -7,7 +7,7 @@ const { Pool } = pg;
 const PORT = +(process.env.PORT || 3003);
 const DATABASE_URL = process.env.DATABASE_URL;
 const COOKIE_NAME = 'vg_session';
-const MAX_BODY = 2 * 1024 * 1024;
+const MAX_BODY = 5 * 1024 * 1024;
 
 if (!DATABASE_URL) throw new Error('DATABASE_URL is required');
 const pool = new Pool({ connectionString: DATABASE_URL, max: 6, idleTimeoutMillis: 30000 });
@@ -88,13 +88,104 @@ function statusOf(err) {
   return Number.isInteger(n) && n >= 400 && n < 600 ? n : 500;
 }
 
+async function membershipsFor(userId) {
+  const { rows } = await query(
+    `SELECT m.id,m.workspace_id,m.role,m.status,w.type AS workspace_type,w.name AS workspace_name,w.slug AS workspace_slug
+       FROM workspace_memberships m
+       JOIN workspaces w ON w.id=m.workspace_id
+      WHERE m.user_id=$1 AND m.status='active' AND m.ended_at IS NULL
+      ORDER BY w.name,m.role`,
+    [userId]
+  );
+  return rows;
+}
+
+async function me(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  return json(res, 200, {
+    user: {
+      id: user.id,
+      name: user.display_name,
+      display_name: user.display_name,
+      email: user.email,
+      locale: user.locale,
+      admin: false,
+      is_platform_admin: !!user.is_platform_admin
+    },
+    memberships: await membershipsFor(user.id)
+  });
+}
+
+async function config(_req, res) {
+  return json(res, 200, {
+    brand: 'varangym',
+    invite_only: true,
+    allow_guest: false,
+    coach_enabled: false
+  });
+}
+
+async function getProfileState(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  const { rows } = await query('SELECT state,rev FROM user_profile_states WHERE user_id=$1', [user.id]);
+  const row = rows[0];
+  return json(res, 200, { state: row?.state || null, rev: Number(row?.rev || 0) });
+}
+
+async function getProfileRevision(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  const { rows } = await query('SELECT rev FROM user_profile_states WHERE user_id=$1', [user.id]);
+  return json(res, 200, { rev: Number(rows[0]?.rev || 0) });
+}
+
+function cleanProfileState(raw) {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Object.assign(new Error('state required'), { status: 400 });
+  const state = structuredClone(raw);
+  for (const key of ['workouts', 'routines']) {
+    if (state[key] != null && !Array.isArray(state[key])) throw Object.assign(new Error(`${key} must be an array`), { status: 400 });
+    if (Array.isArray(state[key])) state[key] = state[key].filter(x => x && typeof x === 'object' && !Array.isArray(x));
+  }
+  delete state.active;
+  return state;
+}
+
+async function putProfileState(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  const body = await bodyJson(req);
+  const state = cleanProfileState(body.state);
+  const baseRev = body.baseRev == null ? null : Number(body.baseRev);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const current = await client.query('SELECT state,rev FROM user_profile_states WHERE user_id=$1 FOR UPDATE', [user.id]);
+    const cur = current.rows[0];
+    const curRev = Number(cur?.rev || 0);
+    if (baseRev != null && baseRev !== curRev) {
+      await client.query('ROLLBACK');
+      return json(res, 409, { error: 'conflict', rev: curRev, state: cur?.state || null });
+    }
+    const nextRev = curRev + 1;
+    state._rev = nextRev;
+    await client.query(
+      `INSERT INTO user_profile_states(user_id,state,rev,updated_at)
+       VALUES ($1,$2::jsonb,$3,now())
+       ON CONFLICT (user_id) DO UPDATE SET state=EXCLUDED.state,rev=EXCLUDED.rev,updated_at=now()`,
+      [user.id, JSON.stringify(state), nextRev]
+    );
+    await client.query('COMMIT');
+    return json(res, 200, { ok: true, rev: nextRev });
+  } catch (err) {
+    try { await client.query('ROLLBACK'); } catch {}
+    throw err;
+  } finally { client.release(); }
+}
+
 async function exerciseList(req, res, url) {
   const user = await requireUser(req, res); if (!user) return;
   const locale = String(url.searchParams.get('locale') || user.locale || 'en').slice(0, 16);
   const q = String(url.searchParams.get('q') || '').trim().slice(0, 100);
   const pattern = q ? `%${q}%` : null;
   const limit = Math.min(80, Math.max(1, +(url.searchParams.get('limit') || 30)));
-
   const { rows } = await query(
     `SELECT e.id,e.legacy_key,e.tracking_mode,e.equipment_key,e.primary_muscle_key,e.metadata,
             COALESCE(tl.name,en.name,e.legacy_key) AS name,
@@ -172,7 +263,6 @@ async function logWorkout(req, res) {
   const name = String(body.name || '').trim();
   if (!name) return json(res, 400, { error: 'name required' });
   if (!exercises.length) return json(res, 400, { error: 'add at least one exercise' });
-
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -183,7 +273,6 @@ async function logWorkout(req, res) {
        body.startedAt || new Date().toISOString(), body.finishedAt || new Date().toISOString(),
        name.slice(0,160), body.programVersionId ? 'assigned' : 'freestyle', JSON.stringify(body.metadata || {})]
     );
-
     for (let ei = 0; ei < exercises.length; ei += 1) {
       const ex = exercises[ei] || {};
       if (!ex.exerciseId) continue;
@@ -227,6 +316,11 @@ async function bodyweight(req, res) {
 
 const routes = new Map([
   ['GET /client/health', async (_req,res) => json(res,200,{ ok:true, service:'varangym-client-api', exercises: EXDB.length })],
+  ['GET /client/me', me],
+  ['GET /client/config', config],
+  ['GET /client/data', getProfileState],
+  ['GET /client/data/rev', getProfileRevision],
+  ['PUT /client/data', putProfileState],
   ['GET /client/exercises', exerciseList],
   ['GET /client/program', activeProgram],
   ['GET /client/history', history],
@@ -234,7 +328,12 @@ const routes = new Map([
   ['POST /client/bodyweight', bodyweight]
 ]);
 
-await query('SELECT 1');
+await query(`CREATE TABLE IF NOT EXISTS user_profile_states (
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  state jsonb,
+  rev bigint NOT NULL DEFAULT 0,
+  updated_at timestamptz NOT NULL DEFAULT now()
+)`);
 console.log('[varangym-client] database ready');
 
 const server = http.createServer(async (req,res) => {
