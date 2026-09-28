@@ -1,9 +1,28 @@
+FROM --platform=$BUILDPLATFORM node:22-alpine AS build
+
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --ignore-scripts
+
+# The original client imports Coach core with this repository-relative path.
+COPY api/coach/core/ /app/api/coach/core/
+COPY frontend/ ./
+
+# Staging: reuse the already-running exercise media endpoint. The VARANGYM client itself
+# is built from this repository; only the large exercise images/GIFs are referenced there.
+ENV VITE_IMG_BASE=https://kiril-coach-production.up.railway.app/img/
+ENV VITE_GIF_BASE=https://kiril-coach-production.up.railway.app/gif/
+RUN npm run build
+
 FROM nginx:1.27-alpine
 
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-COPY public /usr/share/nginx/html
+COPY platform-web/nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /app/frontend/dist /usr/share/nginx/html
+
+# Management is a separate surface. Athletes use the original workout app at /.
+COPY platform-web/public /usr/share/nginx/html/manage
 
 ENV NGINX_PORT=8080
-ENV API_BACKEND=http://platform-api.railway.internal:3000
-ENV TRAINING_BACKEND=http://platform-api.railway.internal:3001
+ENV API_BACKEND=https://platform-api-production.up.railway.app
+ENV API_HOST=platform-api-production.up.railway.app
 EXPOSE 8080
