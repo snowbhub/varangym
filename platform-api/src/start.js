@@ -5,6 +5,7 @@ const publicPort = +(process.env.PORT || 3000);
 const platformPort = +(process.env.PLATFORM_INTERNAL_PORT || 3002);
 const trainingPort = +(process.env.TRAINING_PORT || 3001);
 const clientPort = +(process.env.CLIENT_PORT || 3003);
+const accessPort = +(process.env.ACCESS_PORT || 3004);
 
 function spawnApi(label, script, port) {
   const child = spawn(process.execPath, [script], {
@@ -21,6 +22,7 @@ function spawnApi(label, script, port) {
 let shuttingDown = false;
 const training = spawnApi('training API', 'src/training-server.js', trainingPort);
 const clientApi = spawnApi('client API', 'src/client-server.js', clientPort);
+const accessApi = spawnApi('access API', 'src/access-server.js', accessPort);
 const platform = spawnApi('platform API', 'src/server.js', platformPort);
 
 if (process.env.BOOTSTRAP_ADMIN_CODE) {
@@ -33,6 +35,9 @@ if (process.env.BOOTSTRAP_ADMIN_CODE) {
 
 function upstreamFor(req) {
   const raw = String(req.url || '/');
+  if (raw === '/api/invites' || raw.startsWith('/api/invites/')) {
+    return { port: accessPort, path: raw.slice('/api'.length) || '/invites' };
+  }
   if (raw === '/api/client' || raw.startsWith('/api/client/')) {
     return { port: clientPort, path: raw.slice('/api'.length) || '/client' };
   }
@@ -77,7 +82,7 @@ const gateway = http.createServer((req, res) => {
 });
 
 gateway.listen(publicPort, '0.0.0.0', () => {
-  console.log(`[varangym] gateway listening on :${publicPort} -> platform:${platformPort}, training:${trainingPort}, client:${clientPort}`);
+  console.log(`[varangym] gateway listening on :${publicPort} -> platform:${platformPort}, training:${trainingPort}, client:${clientPort}, access:${accessPort}`);
 });
 
 function shutdown(signal) {
@@ -85,7 +90,7 @@ function shutdown(signal) {
   shuttingDown = true;
   console.log(`[varangym] shutting down (${signal})`);
   gateway.close(() => {
-    for (const child of [platform, training, clientApi]) {
+    for (const child of [platform, training, clientApi, accessApi]) {
       if (!child.killed) child.kill(signal);
     }
     setTimeout(() => process.exit(0), 250).unref();
