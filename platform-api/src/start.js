@@ -21,6 +21,14 @@ let shuttingDown = false;
 const training = spawnApi('training API', 'src/training-server.js', trainingPort);
 const platform = spawnApi('platform API', 'src/server.js', platformPort);
 
+if (process.env.BOOTSTRAP_ADMIN_CODE) {
+  setTimeout(() => {
+    import('./env-bootstrap.js').catch(err => {
+      console.error('[varangym] env bootstrap failed', err?.message || err);
+    });
+  }, 1000).unref();
+}
+
 function upstreamFor(req) {
   const raw = String(req.url || '/');
   // Public contract is /api/training/*; training-server internally owns /training/*.
