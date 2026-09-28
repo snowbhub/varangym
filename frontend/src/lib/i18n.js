@@ -1,7 +1,6 @@
 // Browser-only shell of the i18n module. The runtime-agnostic state and readers live
-// in i18n-core.js (plain Node-loadable); this file adds the two pieces that genuinely need
-// the browser: `setLang` (which lazy-loads locale packs via import.meta.glob) and the React
-// subscription hook `useLang`.
+// in i18n-core.js (plain Node-loadable); this file adds lazy-loaded language packs and
+// the React subscription hook.
 
 import { useSyncExternalStore } from 'react'
 import {
@@ -15,25 +14,35 @@ export {
   getLang, dateLocale, t, instrFor, exerciseNameFor, exerciseNameSearchText
 }
 
-// Vite code-splits locale, instruction and exercise-name packs via import.meta.glob. They are
-// lazy, so the production bundle ships English only until another language is selected.
 const localePacks = import.meta.glob('../locales/*.js')
+const ukExtraPacks = import.meta.glob('../locales/uk-extra-*.js')
 const instrPacks = import.meta.glob('../instr/*.js')
 const exerciseNamePacks = import.meta.glob('../exercise-names/*.js')
 
-// React subscription bookkeeping — kept here, not in core, so core has zero React coupling.
 const subs = new Set()
 const notify = () => { subs.forEach(f => f()) }
+
+async function loadLocale(base) {
+  if (base === 'en') return {}
+  let main = {}
+  try { main = (await localePacks['../locales/' + base + '.js']()).default || {} } catch { main = {} }
+  if (base !== 'uk') return main
+
+  // Ukrainian is being completed in reviewable chunks instead of one unmaintainable 100k file.
+  // The hand-curated main pack wins over the broad extra packs when a key exists in both.
+  const extras = {}
+  for (const path of Object.keys(ukExtraPacks).sort()) {
+    try { Object.assign(extras, (await ukExtraPacks[path]()).default || {}) } catch {}
+  }
+  return { ...extras, ...main }
+}
 
 export async function setLang(l) {
   if (!LANGS[l]) l = 'en'
   if (l === getLang() && getVersion() > 0) return
-  // A derived locale (de-CH) ships no packs of its own: it loads its base language's and
-  // transforms the strings on the way through. `l` stays the selected language throughout, so
-  // dateLocale() still reports de-CH and formats numbers Swiss-style.
   const base = baseLang(l)
   let dict = {}, instr = null, exerciseNames = null
-  try { dict = base === 'en' ? {} : (await localePacks['../locales/' + base + '.js']()).default } catch (e) { dict = {} }
+  dict = await loadLocale(base)
   try { instr = base === 'en' || !INSTR_LANGS.includes(base) ? null : (await instrPacks['../instr/' + base + '.js']()).default } catch (e) { instr = null }
   try {
     exerciseNames = base === 'en' || !EXERCISE_NAME_LANGS.includes(base)
@@ -44,7 +53,6 @@ export async function setLang(l) {
   notify()
 }
 
-// Re-renders the subscribing component (and its children) whenever the language changes.
 export function useLang() {
   return useSyncExternalStore(fn => { subs.add(fn); return () => subs.delete(fn) }, getVersion)
 }
