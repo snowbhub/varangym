@@ -1,4 +1,4 @@
-// Backend + WebAuthn helpers (ported from the vanilla app).
+// Backend + WebAuthn helpers (ported from the original workout client).
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
 export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
@@ -77,13 +77,13 @@ function clientUser(u, memberships = []) {
   }
 }
 
-export async function passkeyRegister(name, code) {
+export async function passkeyRegister(name, code, locale = 'uk', email = null) {
   const { cid, options } = await api('/api/auth/register/options', {
-    method: 'POST', body: JSON.stringify({ name, code: code || '' })
+    method: 'POST', body: JSON.stringify({ name, code: code || '', email: email || null })
   })
   const cred = await navigator.credentials.create({ publicKey: toCreationOptions(options) })
   const res = await api('/api/auth/register/verify', {
-    method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred) })
+    method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred), locale })
   })
   return clientUser(res.user, res.memberships)
 }
