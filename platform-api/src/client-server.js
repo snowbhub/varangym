@@ -2,23 +2,29 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import pg from 'pg';
 import { EXDB } from './exercises-data.js';
+import { overlayAssignedPlan } from './opengym-assignment.js';
 
 const { Pool } = pg;
 const PORT = +(process.env.PORT || 3003);
 const DATABASE_URL = process.env.DATABASE_URL;
 const COOKIE_NAME = 'vg_session';
 const MAX_BODY = 5 * 1024 * 1024;
+const SESSION_DAYS = Math.max(1, +(process.env.SESSION_DAYS || 30) || 30);
 
 if (!DATABASE_URL) throw new Error('DATABASE_URL is required');
 const pool = new Pool({ connectionString: DATABASE_URL, max: 6, idleTimeoutMillis: 30000 });
 const query = (text, params = []) => pool.query(text, params);
+const pairings = new Map();
+const presence = new Map();
+const PRESENCE_TTL = 70_000;
 
-function json(res, status, body) {
+function json(res, status, body, headers = {}) {
   const text = JSON.stringify(body);
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(text),
-    'cache-control': 'no-store'
+    'cache-control': 'no-store',
+    ...headers
   });
   res.end(text);
 }
@@ -30,6 +36,7 @@ function parseCookies(header = '') {
     if (i < 0) continue;
     const key = part.slice(0, i).trim();
     const raw = part.slice(i + 1).trim();
+    if (!key) continue;
     try { out[key] = decodeURIComponent(raw); } catch { out[key] = raw; }
   }
   return out;
@@ -37,6 +44,10 @@ function parseCookies(header = '') {
 
 function hashToken(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
+
+function randomToken(bytes = 32) {
+  return crypto.randomBytes(bytes).toString('base64url');
 }
 
 function sessionToken(req) {
@@ -49,14 +60,19 @@ function sessionToken(req) {
 async function currentUser(req) {
   const token = sessionToken(req);
   if (!token) return null;
+  const tokenHash = hashToken(token);
   const { rows } = await query(
     `SELECT u.id,u.display_name,u.email,u.locale,u.status,u.is_platform_admin
        FROM sessions s JOIN users u ON u.id=s.user_id
       WHERE s.token_hash=$1 AND s.expires_at>now()`,
-    [hashToken(token)]
+    [tokenHash]
   );
   const user = rows[0] || null;
-  return user?.status === 'active' ? user : null;
+  if (user?.status === 'active') {
+    query('UPDATE sessions SET last_seen_at=now() WHERE token_hash=$1', [tokenHash]).catch(() => {});
+    return user;
+  }
+  return null;
 }
 
 async function requireUser(req, res) {
@@ -100,20 +116,21 @@ async function membershipsFor(userId) {
   return rows;
 }
 
+function publicUser(user) {
+  return {
+    id: user.id,
+    name: user.display_name,
+    display_name: user.display_name,
+    email: user.email,
+    locale: user.locale,
+    admin: false,
+    is_platform_admin: !!user.is_platform_admin
+  };
+}
+
 async function me(req, res) {
   const user = await requireUser(req, res); if (!user) return;
-  return json(res, 200, {
-    user: {
-      id: user.id,
-      name: user.display_name,
-      display_name: user.display_name,
-      email: user.email,
-      locale: user.locale,
-      admin: false,
-      is_platform_admin: !!user.is_platform_admin
-    },
-    memberships: await membershipsFor(user.id)
-  });
+  return json(res, 200, { user: publicUser(user), memberships: await membershipsFor(user.id) });
 }
 
 async function config(_req, res) {
@@ -125,11 +142,16 @@ async function config(_req, res) {
   });
 }
 
+async function getStoredState(userId) {
+  const { rows } = await query('SELECT state,rev FROM user_profile_states WHERE user_id=$1', [userId]);
+  return { state: rows[0]?.state || { lang: 'ru' }, rev: Number(rows[0]?.rev || 0) };
+}
+
 async function getProfileState(req, res) {
   const user = await requireUser(req, res); if (!user) return;
-  const { rows } = await query('SELECT state,rev FROM user_profile_states WHERE user_id=$1', [user.id]);
-  const row = rows[0];
-  return json(res, 200, { state: row?.state || null, rev: Number(row?.rev || 0) });
+  const stored = await getStoredState(user.id);
+  const state = await overlayAssignedPlan(query, user, stored.state);
+  return json(res, 200, { state, rev: stored.rev });
 }
 
 async function getProfileRevision(req, res) {
@@ -141,10 +163,23 @@ async function getProfileRevision(req, res) {
 function cleanProfileState(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw Object.assign(new Error('state required'), { status: 400 });
   const state = structuredClone(raw);
-  for (const key of ['workouts', 'routines']) {
+
+  for (const key of ['workouts', 'routines', 'customEx']) {
     if (state[key] != null && !Array.isArray(state[key])) throw Object.assign(new Error(`${key} must be an array`), { status: 400 });
     if (Array.isArray(state[key])) state[key] = state[key].filter(x => x && typeof x === 'object' && !Array.isArray(x));
   }
+
+  state.routines = (state.routines || []).filter(r => r?.varangymAssigned !== true && !String(r?.id || '').startsWith('vg-'));
+  state.customEx = (state.customEx || []).filter(x => x?.varangymAssigned !== true && !String(x?.id || '').startsWith('vgx-'));
+  if (state.week && typeof state.week === 'object') {
+    const cleanedWeek = {};
+    for (const [day, ids] of Object.entries(state.week)) {
+      const list = [].concat(ids || []).filter(id => !String(id || '').startsWith('vg-'));
+      if (list.length) cleanedWeek[day] = list;
+    }
+    state.week = cleanedWeek;
+  }
+  delete state.varangymProgram;
   delete state.active;
   return state;
 }
@@ -162,7 +197,8 @@ async function putProfileState(req, res) {
     const curRev = Number(cur?.rev || 0);
     if (baseRev != null && baseRev !== curRev) {
       await client.query('ROLLBACK');
-      return json(res, 409, { error: 'conflict', rev: curRev, state: cur?.state || null });
+      const conflictState = await overlayAssignedPlan(query, user, cur?.state || { lang: 'ru' });
+      return json(res, 409, { error: 'conflict', rev: curRev, state: conflictState });
     }
     const nextRev = curRev + 1;
     state._rev = nextRev;
@@ -178,6 +214,73 @@ async function putProfileState(req, res) {
     try { await client.query('ROLLBACK'); } catch {}
     throw err;
   } finally { client.release(); }
+}
+
+async function activity(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  const body = await bodyJson(req);
+  if (body.active) {
+    presence.set(user.id, {
+      name: String(body.name || '').slice(0, 60),
+      exIdx: Number(body.exIdx || 0),
+      exTotal: Number(body.exTotal || 0),
+      setsDone: Number(body.setsDone || 0),
+      setsTotal: Number(body.setsTotal || 0),
+      startedAt: Number(body.startedAt || Date.now()),
+      updatedAt: Date.now()
+    });
+  } else {
+    presence.delete(user.id);
+  }
+  return json(res, 200, { ok: true });
+}
+
+async function logoutAll(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  await query('DELETE FROM sessions WHERE user_id=$1', [user.id]);
+  for (const [code, p] of pairings) if (p.userId === user.id) pairings.delete(code);
+  return json(res, 200, { ok: true }, {
+    'set-cookie': `${COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0; Secure`
+  });
+}
+
+function makePairCode() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(8);
+  return Array.from(bytes, b => alphabet[b % alphabet.length]).join('');
+}
+
+async function pairCreate(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  const code = makePairCode();
+  pairings.set(code, { userId: user.id, exp: Date.now() + 5 * 60_000 });
+  return json(res, 200, { code });
+}
+
+async function pairRedeem(req, res) {
+  const body = await bodyJson(req);
+  const code = String(body.code || '').trim().toUpperCase();
+  const pairing = pairings.get(code);
+  if (pairing) pairings.delete(code);
+  if (!pairing || pairing.exp < Date.now()) return json(res, 403, { error: 'pairing code is invalid or expired' });
+
+  const { rows } = await query(`SELECT id,display_name,email,locale,status,is_platform_admin FROM users WHERE id=$1`, [pairing.userId]);
+  const user = rows[0];
+  if (!user || user.status !== 'active') return json(res, 403, { error: 'account disabled' });
+
+  const token = randomToken(32);
+  await query(
+    `INSERT INTO sessions(token_hash,user_id,expires_at,user_agent,ip_hint)
+     VALUES ($1,$2,now()+($3 || ' days')::interval,'VARANGYM mobile pairing',NULL)`,
+    [hashToken(token), user.id, String(SESSION_DAYS)]
+  );
+  return json(res, 200, { token, user: publicUser(user) });
+}
+
+async function pushCompatibility(req, res) {
+  const user = await requireUser(req, res); if (!user) return;
+  try { await bodyJson(req); } catch {}
+  return json(res, 200, { ok: true, backgroundPush: false });
 }
 
 async function exerciseList(req, res, url) {
@@ -240,68 +343,6 @@ async function activeProgram(req, res) {
   return json(res, 200, { program, days: days.rows });
 }
 
-async function history(req, res) {
-  const user = await requireUser(req, res); if (!user) return;
-  const { rows } = await query(
-    `SELECT w.id,w.name,w.started_at,w.finished_at,w.source,
-            count(DISTINCT we.id)::int AS exercises,
-            count(ws.id) FILTER (WHERE ws.done=true)::int AS completed_sets
-       FROM workouts w
-       LEFT JOIN workout_exercises we ON we.workout_id=w.id
-       LEFT JOIN workout_sets ws ON ws.workout_exercise_id=we.id
-      WHERE w.user_id=$1
-      GROUP BY w.id ORDER BY w.started_at DESC LIMIT 20`,
-    [user.id]
-  );
-  return json(res, 200, { workouts: rows });
-}
-
-async function logWorkout(req, res) {
-  const user = await requireUser(req, res); if (!user) return;
-  const body = await bodyJson(req);
-  const exercises = Array.isArray(body.exercises) ? body.exercises : [];
-  const name = String(body.name || '').trim();
-  if (!name) return json(res, 400, { error: 'name required' });
-  if (!exercises.length) return json(res, 400, { error: 'add at least one exercise' });
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const w = await client.query(
-      `INSERT INTO workouts(user_id,workspace_id,program_version_id,started_at,finished_at,name,source,metadata)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb) RETURNING id`,
-      [user.id, body.workspaceId || null, body.programVersionId || null,
-       body.startedAt || new Date().toISOString(), body.finishedAt || new Date().toISOString(),
-       name.slice(0,160), body.programVersionId ? 'assigned' : 'freestyle', JSON.stringify(body.metadata || {})]
-    );
-    for (let ei = 0; ei < exercises.length; ei += 1) {
-      const ex = exercises[ei] || {};
-      if (!ex.exerciseId) continue;
-      const we = await client.query(
-        `INSERT INTO workout_exercises(workout_id,exercise_id,position,snapshot_name,prescription_snapshot)
-         VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING id`,
-        [w.rows[0].id, ex.exerciseId, ei, ex.name || null, JSON.stringify(ex.prescription || {})]
-      );
-      const sets = Array.isArray(ex.sets) ? ex.sets : [];
-      for (let si = 0; si < sets.length; si += 1) {
-        const s = sets[si] || {};
-        await client.query(
-          `INSERT INTO workout_sets(workout_exercise_id,position,set_type,phase,weight,reps,seconds,distance,done,details)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)`,
-          [we.rows[0].id, si, s.type || 'straight', s.phase || 'work',
-           s.weight === '' || s.weight == null ? null : Number(s.weight),
-           s.reps === '' || s.reps == null ? null : Number(s.reps),
-           s.seconds == null ? null : Number(s.seconds), s.distance == null ? null : Number(s.distance),
-           s.done !== false, JSON.stringify(s.details || {})]
-        );
-      }
-    }
-    await client.query('COMMIT');
-    return json(res, 201, { id: w.rows[0].id });
-  } catch (err) {
-    await client.query('ROLLBACK'); throw err;
-  } finally { client.release(); }
-}
-
 async function bodyweight(req, res) {
   const user = await requireUser(req, res); if (!user) return;
   const body = await bodyJson(req);
@@ -321,10 +362,14 @@ const routes = new Map([
   ['GET /client/data', getProfileState],
   ['GET /client/data/rev', getProfileRevision],
   ['PUT /client/data', putProfileState],
+  ['POST /client/activity', activity],
+  ['POST /client/logout/all', logoutAll],
+  ['POST /client/pair/create', pairCreate],
+  ['POST /client/pair/redeem', pairRedeem],
+  ['POST /client/push/rest-timer', pushCompatibility],
+  ['POST /client/push/rest-timer/cancel', pushCompatibility],
   ['GET /client/exercises', exerciseList],
   ['GET /client/program', activeProgram],
-  ['GET /client/history', history],
-  ['POST /client/workouts', logWorkout],
   ['POST /client/bodyweight', bodyweight]
 ]);
 
