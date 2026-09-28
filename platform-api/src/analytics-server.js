@@ -87,11 +87,36 @@ async function revenueSummary(subjectFilter='',params=[],days=30) {
   return rows[0];
 }
 
+async function persistenceDiagnostics() {
+  const [version, counts] = await Promise.all([
+    query(`SELECT current_database() AS database,current_setting('server_version') AS server_version,now() AS checked_at`),
+    query(`SELECT
+      (SELECT count(*) FROM users)::int AS users,
+      (SELECT count(*) FROM user_profile_states)::int AS profile_states,
+      (SELECT count(*) FROM workouts)::int AS workouts,
+      (SELECT count(*) FROM workout_exercises)::int AS workout_exercises,
+      (SELECT count(*) FROM workout_sets)::int AS workout_sets,
+      (SELECT count(*) FROM bodyweights)::int AS bodyweights,
+      (SELECT count(*) FROM programs)::int AS programs,
+      (SELECT count(*) FROM program_assignments WHERE active=true)::int AS active_assignments,
+      (SELECT count(*) FROM exercises)::int AS exercises,
+      (SELECT count(*) FROM subscriptions)::int AS subscriptions,
+      (SELECT count(*) FROM payments)::int AS payments,
+      (SELECT count(*) FROM sessions WHERE expires_at>now())::int AS active_sessions`)
+  ]);
+  return {
+    engine: 'postgresql',
+    sourceOfTruth: 'PostgreSQL for signed-in accounts; browser localStorage is an offline cache that syncs back to PostgreSQL',
+    database: version.rows[0],
+    counts: counts.rows[0]
+  };
+}
+
 async function adminAnalytics(req,res,url) {
   const user=await requireUser(req,res); if(!user) return;
   if(!user.is_platform_admin) return json(res,403,{error:'forbidden'});
   const days=daysParam(url);
-  const [daily,top,revenue,users,subs,plans]=await Promise.all([
+  const [daily,top,revenue,users,subs,plans,persistence]=await Promise.all([
     dailyActivity('WHERE 1=1',[],days),
     topExercises('WHERE 1=1',[],days),
     revenueSummary('',[],days),
@@ -101,9 +126,10 @@ async function adminAnalytics(req,res,url) {
       count(*) FILTER (WHERE id IN (SELECT DISTINCT user_id FROM workouts WHERE started_at>=now()-interval '30 days'))::int active_30d
       FROM users`,[days]),
     query(`SELECT plan_code,status,count(*)::int count FROM subscriptions GROUP BY plan_code,status ORDER BY plan_code,status`),
-    query(`SELECT code,audience,billing_kind,interval_unit,price_cents,currency,trainer_limit,client_limit,metadata FROM billing_plans WHERE active=true ORDER BY sort_order`)
+    query(`SELECT code,audience,billing_kind,interval_unit,price_cents,currency,trainer_limit,client_limit,metadata FROM billing_plans WHERE active=true ORDER BY sort_order`),
+    persistenceDiagnostics()
   ]);
-  return json(res,200,{scope:'platform',days,users:users.rows[0],revenue,daily,topExercises:top,subscriptions:subs.rows,plans:plans.rows});
+  return json(res,200,{scope:'platform',days,users:users.rows[0],revenue,daily,topExercises:top,subscriptions:subs.rows,plans:plans.rows,persistence});
 }
 
 async function coachAnalytics(req,res,url) {
