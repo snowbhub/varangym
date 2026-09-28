@@ -1,15 +1,21 @@
-// Keep the original openGym React application untouched as the athlete UI.
-// This tiny shell bridge only exposes VARANGYM management to accounts that actually have
-// a trainer/owner/admin/platform-admin role. Client-only profiles see no extra control.
+// VARANGYM role bridge. The proven workout UI remains the athlete experience; this bridge only
+// adds one branded management control for trainer / business / platform-admin accounts.
 (() => {
   const MANAGER_ROLES = new Set(['owner', 'admin', 'trainer']);
   let canManage = false;
+  let managerLabel = 'VARANGYM Coach';
   let checking = false;
   let checkedAt = 0;
   let timer = null;
 
-  function managerFrom(me) {
-    return !!me?.user?.is_platform_admin || (me?.memberships || []).some(m => MANAGER_ROLES.has(m?.role));
+  function roleFrom(me) {
+    if (me?.user?.is_platform_admin) return { allowed: true, label: 'VARANGYM Admin' };
+    const ms = me?.memberships || [];
+    if (ms.some(m => m.workspace_type === 'organization' && ['owner','admin'].includes(m.role))) {
+      return { allowed: true, label: 'VARANGYM Business' };
+    }
+    if (ms.some(m => MANAGER_ROLES.has(m?.role))) return { allowed: true, label: 'VARANGYM Coach' };
+    return { allowed: false, label: 'VARANGYM' };
   }
 
   async function refreshRole(force = false) {
@@ -22,14 +28,24 @@
       if (!res.ok) {
         canManage = false;
       } else {
-        canManage = managerFrom(await res.json());
+        const role = roleFrom(await res.json());
+        canManage = role.allowed;
+        managerLabel = role.label;
       }
     } catch {
-      // Leave the athlete app alone when the management lookup is unavailable.
+      // Training must stay usable even when management is temporarily unavailable.
     } finally {
       checking = false;
       renderButton();
     }
+  }
+
+  function markSvg() {
+    return `<svg viewBox="0 0 96 96" width="26" height="26" aria-hidden="true" focusable="false">
+      <path d="M13 18 42.8 78.5c2.1 4.2 8.2 4.2 10.3 0L83 18H68.4L48 61.9 27.6 18Z" fill="currentColor"/>
+      <path d="M58.5 28.8c7.6-5.6 14.7-7.3 21.3-5.3-5.8 1.8-10.5 5.3-14.1 10.6-2.7-.8-5.1-2.6-7.2-5.3Z" fill="currentColor" opacity=".9"/>
+      <circle cx="69.3" cy="27.8" r="2.1" fill="var(--bg,#000)"/>
+    </svg>`;
   }
 
   function renderButton() {
@@ -39,26 +55,26 @@
       return;
     }
 
-    // The normal openGym home/settings headers use .hdr and .iconbtn. We add one small control
-    // beside the existing header action; no workout/plan/stats/library markup is replaced.
     const headers = [...document.querySelectorAll('.hdr')];
     const header = headers.find(h => h.querySelector('.iconbtn'));
     if (!header) return;
-    if (existing && existing.isConnected) return;
+    if (existing && existing.isConnected) {
+      existing.setAttribute('aria-label', managerLabel);
+      existing.title = managerLabel;
+      return;
+    }
 
-    const gear = header.querySelector('.iconbtn');
+    const anchor = header.querySelector('.iconbtn');
     const button = document.createElement('button');
     button.id = 'varangymManageButton';
     button.className = 'iconbtn';
     button.type = 'button';
-    button.setAttribute('aria-label', 'VARANGYM Coach');
-    button.title = 'VARANGYM Coach';
-    button.textContent = 'V';
-    button.style.fontWeight = '800';
-    button.style.letterSpacing = '-.04em';
+    button.setAttribute('aria-label', managerLabel);
+    button.title = managerLabel;
     button.style.color = 'var(--acc)';
+    button.innerHTML = markSvg();
     button.addEventListener('click', () => { window.location.href = '/manage/'; });
-    gear.parentNode.insertBefore(button, gear);
+    anchor.parentNode.insertBefore(button, anchor);
   }
 
   const observer = new MutationObserver(() => {
