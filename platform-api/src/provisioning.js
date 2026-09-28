@@ -59,14 +59,18 @@ async function claimPaidSoloGrant(db, invite, user) {
       JSON.stringify({ provider: grant.provider, checkoutId: grant.provider_checkout_id })]
   );
 
+  let subscriptionId = null;
   if (grant.billing_kind === 'recurring' && grant.provider_subscription_id) {
-    await db.query(
+    const r = await db.query(
       `INSERT INTO subscriptions(subject_type,subject_id,provider,provider_customer_id,provider_subscription_id,plan_code,status,metadata)
        VALUES ('user',$1,$2,$3,$4,$5,'active',$6::jsonb)
-       ON CONFLICT DO NOTHING`,
+       ON CONFLICT(provider,provider_subscription_id) WHERE provider_subscription_id IS NOT NULL
+       DO UPDATE SET subject_type=EXCLUDED.subject_type,subject_id=EXCLUDED.subject_id,plan_code=EXCLUDED.plan_code,status='active',updated_at=now()
+       RETURNING id`,
       [user.id, grant.provider, grant.provider_customer_id, grant.provider_subscription_id, grant.plan_code,
         JSON.stringify({ checkoutId: grant.provider_checkout_id })]
     );
+    subscriptionId = r.rows[0]?.id || null;
   }
 
   const paymentId = grant.provider_payment_id || `checkout:${grant.provider_checkout_id}`;
@@ -78,7 +82,17 @@ async function claimPaidSoloGrant(db, invite, user) {
       JSON.stringify({ source: 'checkout-grant-claim' })]
   );
 
-  await db.query(`UPDATE checkout_grants SET status='claimed',claimed_at=now() WHERE id=$1`, [grant.id]);
+  if (grant.billing_kind === 'lifetime' || subscriptionId) {
+    await db.query(
+      `INSERT INTO entitlements(subject_type,subject_id,key,value,source_subscription_id,starts_at,ends_at)
+       VALUES ('user',$1,'access',$2::jsonb,$3,now(),NULL)
+       ON CONFLICT(subject_type,subject_id,key) WHERE ends_at IS NULL
+       DO UPDATE SET value=EXCLUDED.value,source_subscription_id=EXCLUDED.source_subscription_id,starts_at=now()`,
+      [user.id, JSON.stringify({ enabled: true, audience: 'solo' }), subscriptionId]
+    );
+  }
+
+  await db.query(`UPDATE checkout_grants SET status='claimed',claimed_at=now(),updated_at=now() WHERE id=$1`, [grant.id]);
 }
 
 export async function provisionFromInvite(db, invite, user) {
@@ -166,6 +180,75 @@ export async function membershipsFor(db, userId) {
   return rows;
 }
 
+async function commercialCapacity(db, workspaceId) {
+  const { rows } = await db.query(
+    `SELECT s.plan_code,s.extra_trainers,p.audience,p.trainer_limit,p.client_limit,p.metadata,
+            EXISTS(
+              SELECT 1 FROM entitlements e
+               WHERE e.subject_type='workspace' AND e.subject_id=s.subject_id AND e.key='access'
+                 AND e.ends_at IS NULL AND COALESCE((e.value->>'enabled')::boolean,true)=true
+            ) AS access_enabled
+       FROM billing_subject_settings s
+       JOIN billing_plans p ON p.code=s.plan_code
+      WHERE s.subject_type='workspace' AND s.subject_id=$1`,
+    [workspaceId]
+  );
+  const plan = rows[0];
+  if (!plan || !plan.access_enabled) return null;
+  const extra = Math.max(0, Number(plan.extra_trainers || 0));
+  const extraClientsPerTrainer = Math.max(0, Number(plan.metadata?.clientsPerExtraTrainer || 0));
+  return {
+    planCode: plan.plan_code,
+    trainerLimit: plan.trainer_limit == null ? null : Number(plan.trainer_limit) + extra,
+    clientLimit: plan.client_limit == null ? null : Number(plan.client_limit) + extra * extraClientsPerTrainer
+  };
+}
+
+async function pendingInviteSeats(db, workspaceId, targetRole) {
+  const { rows } = await db.query(
+    `SELECT COALESCE(sum(GREATEST(max_uses-use_count,0)),0)::int AS seats
+       FROM invites
+      WHERE workspace_id=$1 AND target_role=$2 AND revoked_at IS NULL AND expires_at>now() AND use_count<max_uses`,
+    [workspaceId, targetRole]
+  );
+  return Number(rows[0]?.seats || 0);
+}
+
+async function enforceCommercialCapacity(db, actor, workspaceId, targetRole, requestedSeats) {
+  if (actor.is_platform_admin || !workspaceId || !['client','trainer'].includes(targetRole)) return;
+  const { rows: wsRows } = await db.query(`SELECT type FROM workspaces WHERE id=$1 AND status='active'`, [workspaceId]);
+  const workspace = wsRows[0];
+  if (!workspace) throw Object.assign(new Error('workspace not found'), { status: 404 });
+  if (!['independent_trainer','organization'].includes(workspace.type)) return;
+
+  const cap = await commercialCapacity(db, workspaceId);
+  if (!cap) {
+    throw Object.assign(new Error('active Coach or Business subscription required'), { status: 402, code: 'SUBSCRIPTION_REQUIRED' });
+  }
+
+  if (targetRole === 'trainer' && cap.trainerLimit != null) {
+    const active = Number((await db.query(
+      `SELECT count(DISTINCT user_id)::int AS n FROM workspace_memberships
+        WHERE workspace_id=$1 AND role='trainer' AND status='active' AND ended_at IS NULL`, [workspaceId]
+    )).rows[0]?.n || 0);
+    const reserved = await pendingInviteSeats(db, workspaceId, 'trainer');
+    if (active + reserved + requestedSeats > cap.trainerLimit) {
+      throw Object.assign(new Error(`trainer limit reached for ${cap.planCode}`), { status: 409, code: 'TRAINER_LIMIT_REACHED', limit: cap.trainerLimit });
+    }
+  }
+
+  if (targetRole === 'client' && cap.clientLimit != null) {
+    const active = Number((await db.query(
+      `SELECT count(DISTINCT client_user_id)::int AS n FROM trainer_client_links
+        WHERE workspace_id=$1 AND status='active'`, [workspaceId]
+    )).rows[0]?.n || 0);
+    const reserved = await pendingInviteSeats(db, workspaceId, 'client');
+    if (active + reserved + requestedSeats > cap.clientLimit) {
+      throw Object.assign(new Error(`client limit reached for ${cap.planCode}`), { status: 409, code: 'CLIENT_LIMIT_REACHED', limit: cap.clientLimit });
+    }
+  }
+}
+
 export async function createInviteForActor(db, actor, input) {
   const targetRole = String(input.targetRole || input.target_role || '');
   const requestedWorkspaceId = input.workspaceId || input.workspace_id || null;
@@ -216,6 +299,8 @@ export async function createInviteForActor(db, actor, input) {
   if (['organization_admin','trainer','client'].includes(targetRole) && !workspaceId) {
     throw Object.assign(new Error('workspace is required for this invite'), { status: 400 });
   }
+
+  await enforceCommercialCapacity(db, actor, workspaceId, targetRole, maxUses);
 
   const code = inviteCode(maxUses > 1 ? 3 : 2, 4);
   const encryptedCode = encryptInviteCode(code);
