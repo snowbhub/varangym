@@ -28,6 +28,17 @@ server {
     proxy_set_header Host ${API_HOST};
   }
 
+  # During staging, always serve the newest dashboard assets after a deploy.
+  location = /index.html {
+    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    try_files $uri =404;
+  }
+
+  location ~* \.(?:js|css)$ {
+    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+    try_files $uri =404;
+  }
+
   location / {
     try_files $uri $uri/ /index.html;
   }
