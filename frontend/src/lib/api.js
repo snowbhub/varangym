@@ -67,9 +67,14 @@ function credToJSON(cred) {
   return out
 }
 
-function clientUser(u) {
+function clientUser(u, memberships = []) {
   if (!u) return u
-  return { ...u, name: u.name || u.display_name || 'VARANGYM', admin: false }
+  return {
+    ...u,
+    name: u.name || u.display_name || 'VARANGYM',
+    admin: false,
+    memberships: Array.isArray(u.memberships) ? u.memberships : (Array.isArray(memberships) ? memberships : [])
+  }
 }
 
 export async function passkeyRegister(name, code) {
@@ -80,7 +85,7 @@ export async function passkeyRegister(name, code) {
   const res = await api('/api/auth/register/verify', {
     method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred) })
   })
-  return clientUser(res.user)
+  return clientUser(res.user, res.memberships)
 }
 
 export async function passkeyLogin() {
@@ -89,5 +94,5 @@ export async function passkeyLogin() {
   const res = await api('/api/auth/login/verify', {
     method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred) })
   })
-  return clientUser(res.user)
+  return clientUser(res.user, res.memberships)
 }
