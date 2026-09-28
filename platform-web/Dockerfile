@@ -19,6 +19,11 @@ FROM nginx:1.27-alpine
 COPY platform-web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
 
+# The workout app stays the original openGym build. This role-aware bridge only adds a small
+# management entry point for trainer/admin accounts; it does not replace client screens.
+COPY platform-web/athlete-bridge.js /usr/share/nginx/html/varangym-bridge.js
+RUN sed -i 's#</body>#<script src="/varangym-bridge.js" defer></script></body>#' /usr/share/nginx/html/index.html
+
 # Management is a separate surface. Athletes use the original workout app at /.
 COPY platform-web/public /usr/share/nginx/html/manage
 
