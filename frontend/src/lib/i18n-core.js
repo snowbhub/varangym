@@ -1,6 +1,7 @@
 // Runtime-agnostic core of the i18n module: state, constants and readers (t, dateLocale,
 // instrFor, exerciseNameFor, getLang). Plain Node-loadable — the browser-only pieces
 // (import.meta.glob lazy loads, the React subscription hook) live in i18n.js and re-export from here.
+import { ukExerciseName } from './uk-exercise-name.js'
 
 export const LANGS = {
   en: 'English', uk: 'Українська', de: 'Deutsch', 'de-CH': 'Deutsch (Schweiz)', es: 'Español', fr: 'Français',
@@ -16,9 +17,6 @@ export const DATE_LOCALES = {
   pl: 'pl-PL', tr: 'tr-TR', ru: 'ru-RU', zh: 'zh-CN', ko: 'ko-KR', hi: 'hi-IN', th: 'th-TH', hu: 'hu-HU'
 }
 
-// Locales derived from another language by a pure text transform rather than carried as their
-// own pack. Swiss Standard German has no ß — every one is written ss — so de-CH is de with a
-// single substitution.
 export const DERIVED_LOCALES = {
   'de-CH': { base: 'de', transform: s => s.replace(/ß/g, 'ss') }
 }
@@ -47,15 +45,11 @@ export const getLang = () => lang
 export const dateLocale = () => DATE_LOCALES[lang] || 'en-GB'
 export const getVersion = () => version
 
-// VARANGYM is a commercial rebrand of the open-source base. UI strings inherited from upstream
-// may still contain the old product name; normalize those at the final translation boundary so
-// no stale branding leaks into toasts/settings while the source remains easy to rebase.
 const brandText = value => String(value ?? '')
   .replaceAll('openGym', 'VARANGYM')
   .replaceAll('OpenGym', 'VARANGYM')
   .replaceAll('opengym', 'varangym')
 
-// Translate a source string; {0},{1}… are replaced with args (also on the English fallback).
 export function t(s, ...args) {
   let v = dict[s] || s
   for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', args[i])
@@ -65,16 +59,20 @@ export function t(s, ...args) {
 export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
 
 export const exerciseNameFor = ex => {
-  const translated = exerciseNames && ex && exerciseNames[ex.id]
-  if (!translated) return ex?.n || ''
+  if (!ex) return ''
+  const translated = exerciseNames && exerciseNames[ex.id]
+  if (lang === 'uk') return translated || ukExerciseName(ex.n || '')
+  if (!translated) return ex.n || ''
   return translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
     ? translated
     : `${translated} (${ex.n})`
 }
 
 export const exerciseNameSearchText = ex => {
-  const translated = exerciseNames && ex && exerciseNames[ex.id]
-  return translated ? `${translated} ${ex.n}` : (ex?.n || '')
+  if (!ex) return ''
+  const translated = exerciseNames && exerciseNames[ex.id]
+  if (lang === 'uk') return `${translated || ukExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
+  return translated ? `${translated} ${ex.n}` : (ex.n || '')
 }
 
 export function _setLangState(newLang, newDict, newInstr, newExerciseNames) {
