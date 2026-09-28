@@ -23,9 +23,9 @@ const platform = spawnApi('platform API', 'src/server.js', platformPort);
 
 function upstreamFor(req) {
   const raw = String(req.url || '/');
+  // Public contract is /api/training/*; training-server internally owns /training/*.
   if (raw === '/api/training' || raw.startsWith('/api/training/')) {
-    const suffix = raw.slice('/api/training'.length) || '/';
-    return { port: trainingPort, path: suffix.startsWith('/') ? suffix : `/${suffix}` };
+    return { port: trainingPort, path: raw.slice('/api'.length) || '/training' };
   }
   return { port: platformPort, path: raw };
 }
@@ -33,7 +33,6 @@ function upstreamFor(req) {
 const gateway = http.createServer((req, res) => {
   const upstream = upstreamFor(req);
   const headers = { ...req.headers, host: `127.0.0.1:${upstream.port}` };
-  delete headers['content-length'];
 
   const proxy = http.request({
     hostname: '127.0.0.1',
