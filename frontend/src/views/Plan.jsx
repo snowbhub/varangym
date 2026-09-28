@@ -1,5 +1,7 @@
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
+import { useUI } from '../store/useUI.js'
 import { DAYN, weekOrder, weekStartOf, uid, exCount, routineCount } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
 import { dayAssignSheet, dayAddRoutineSheet, starterPlanSheet, planToolsSheet } from '../sheets.jsx'
@@ -10,6 +12,8 @@ import { glyphOf, DEFAULT_GLYPH } from '../lib/glyphs.js'
 import { DEMO } from '../lib/demo.js'
 import { MOBILE } from '../lib/mobile.js'
 import { coachAvailable } from '../lib/coach.js'
+import { EXIDX } from '../lib/exercises.js'
+import { downloadExerciseOffline, offlineMediaSupported } from '../lib/offline-media.js'
 
 export default function Plan() {
   const nav = useNavigate()
@@ -18,15 +22,50 @@ export default function Plan() {
   const config = useStore(s => s.config)
   const coachMode = useStore(s => s.coachLocal?.mode)
   const user = useStore(s => s.user)
+  const [offlineBusy, setOfflineBusy] = useState(false)
+  const [offlineProgress, setOfflineProgress] = useState(null)
 
-  /* The Coach's only entry point in the app. Its screens have existed since the UI landed and
-     nothing linked to them, so the feature was reachable only by typing the URL — enabled,
-     configured, and invisible. The same predicate every other Coach surface uses gates it, so
-     an instance without the feature sees exactly the Plan screen it saw before. */
   const showCoach = coachAvailable(config, user, { demo: DEMO, mobile: MOBILE, coachMode })
 
-  // Swap with the neighbour, the way the routine editor moves an exercise. `S.routines` is the
-  // one order the whole app reads, so this is all there is to it (#142).
+  const planExerciseIds = useMemo(() => {
+    const usedRoutines = new Set(Object.values(S.week || {}).flatMap(v => [].concat(v || [])))
+    const ids = []
+    for (const routine of S.routines || []) {
+      if (!usedRoutines.has(routine.id)) continue
+      for (const cfg of routine.ex || []) if (cfg?.id) ids.push(cfg.id)
+    }
+    return [...new Set(ids)]
+  }, [S.week, S.routines])
+
+  const downloadPlanOffline = async () => {
+    if (offlineBusy) return
+    if (!offlineMediaSupported()) {
+      useUI.getState().toast(t('Offline downloads are not supported in this browser'))
+      return
+    }
+    const exercises = planExerciseIds.map(id => EXIDX[id]).filter(Boolean)
+    if (!exercises.length) {
+      useUI.getState().toast(t('Your weekly plan has no downloadable exercises yet'))
+      return
+    }
+    setOfflineBusy(true)
+    setOfflineProgress({ done: 0, total: exercises.length })
+    try {
+      let done = 0
+      for (const ex of exercises) {
+        await downloadExerciseOffline(ex)
+        done++
+        setOfflineProgress({ done, total: exercises.length })
+      }
+      useUI.getState().toast(t('Plan saved for offline use'))
+    } catch (err) {
+      useUI.getState().toast(err?.message || t('Offline download failed'))
+    } finally {
+      setOfflineBusy(false)
+      setTimeout(() => setOfflineProgress(null), 1800)
+    }
+  }
+
   const moveRoutine = (i, delta) => update(s => {
     const to = i + delta
     if (to < 0 || to >= s.routines.length) return
@@ -40,7 +79,6 @@ export default function Plan() {
     nav('/plan/r/' + r.id)
   }
 
-  // Pull one routine off a weekday; drop the key when the day empties (never store []).
   const removeFromDay = (d, rid) => update(s => {
     const next = [].concat(s.week[d] || []).filter(id => id !== rid)
     if (next.length) s.week[d] = next; else delete s.week[d]
@@ -49,8 +87,20 @@ export default function Plan() {
   return <>
     <div className="hdr">
       <div><h1>{t('Plan')}</h1><div className="sub">{t('Your weekly routine')}</div></div>
-      <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
+      <div className="row" style={{ gap: 8 }}>
+        <button className="iconbtn" disabled={offlineBusy || !planExerciseIds.length} onClick={downloadPlanOffline}
+          aria-label={t('Download plan for offline use')} title={t('Download plan for offline use')}>
+          <Icon name={offlineBusy ? 'clock' : 'download'} />
+        </button>
+        <button className="iconbtn" onClick={planToolsSheet} aria-label={t('Share your plan')} title={t('Share your plan')}><Icon name="upload" /></button>
+      </div>
     </div>
+
+    {offlineProgress && <div className="card small" style={{ marginBottom: 12 }}>
+      <div className="row between"><b>{t('Offline plan')}</b><span className="muted">{offlineProgress.done}/{offlineProgress.total}</span></div>
+      <div className="muted small" style={{ marginTop: 5 }}>{t('Downloading exercise images and animations so this plan stays usable without internet.')}</div>
+    </div>}
+
     {showCoach && <button className="coach-cta" onClick={() => nav('/coach')}>
       <span className="coach-cta-av"><Icon name="sparkles" /></span>
       <span className="coach-cta-t">
@@ -65,12 +115,10 @@ export default function Plan() {
       <div className="list" style={{ display: 'flex', flexDirection: 'column' }}>
         {weekOrder(weekStartOf(S)).map(d => {
           const dayRoutines = [].concat(S.week[d] || []).map(id => S.routines.find(x => x.id === id)).filter(Boolean)
-          // An empty day stays one tappable row → pick its first routine (today's behaviour).
           if (!dayRoutines.length) return <div key={d} className="item" {...tappable(() => dayAssignSheet(d))}>
             <div className="grow"><div className="tt">{t(DAYN[d])}</div></div>
             <span className="tag">{t('Rest')}</span>
             <Icon name="chevronRight" className="chev" /></div>
-          // A populated day: always-visible routine sub-rows + inline ✕, then ＋ Add routine.
           return <div key={d} className="item" style={{ display: 'block', padding: '10px 14px' }}>
             <div className="row between" style={{ marginBottom: 6 }}>
               <div className="tt">{t(DAYN[d])}</div>
@@ -95,9 +143,6 @@ export default function Plan() {
       {S.routines.length ? <div className="list">{S.routines.map((r, i) => <div key={r.id} className="item" {...tappable(() => nav('/plan/r/' + r.id))}>
         <span className="lrow-i"><Icon name={glyphOf(r.emoji)} /></span>
         <div className="grow"><div className="tt">{r.name}</div><div className="ss">{exCount(r.ex.length)}</div></div>
-        {/* The order of this list is the order of `S.routines`, and every other screen reads the
-            same array — the Start screen, the day-assignment sheets, the routine pickers. So
-            moving a routine here moves it everywhere, which is what the request asked for (#142). */}
         {S.routines.length > 1 && <div style={{ display: 'flex', gap: 2, flex: 'none' }}>
           <button className="iconbtn" aria-label={t('Move up')} title={t('Move up')} disabled={i === 0}
             style={{ width: 28, height: 24, borderRadius: 7, fontSize: 12 }}
