@@ -39,6 +39,48 @@ async function addMembership(db, workspaceId, userId, role) {
   );
 }
 
+async function claimPaidSoloGrant(db, invite, user) {
+  const { rows } = await db.query(
+    `SELECT g.*,p.billing_kind,p.interval_unit
+       FROM checkout_grants g JOIN billing_plans p ON p.code=g.plan_code
+      WHERE g.invite_id=$1 AND g.status='paid' FOR UPDATE`,
+    [invite.id]
+  );
+  const grant = rows[0];
+  if (!grant) return;
+
+  await db.query(
+    `INSERT INTO billing_subject_settings(subject_type,subject_id,plan_code,lifetime_access,billing_email,metadata,updated_at)
+     VALUES ('user',$1,$2,$3,$4,$5::jsonb,now())
+     ON CONFLICT(subject_type,subject_id) DO UPDATE SET
+       plan_code=EXCLUDED.plan_code,lifetime_access=EXCLUDED.lifetime_access,
+       billing_email=EXCLUDED.billing_email,metadata=billing_subject_settings.metadata||EXCLUDED.metadata,updated_at=now()`,
+    [user.id, grant.plan_code, grant.billing_kind === 'lifetime', grant.email,
+      JSON.stringify({ provider: grant.provider, checkoutId: grant.provider_checkout_id })]
+  );
+
+  if (grant.billing_kind === 'recurring' && grant.provider_subscription_id) {
+    await db.query(
+      `INSERT INTO subscriptions(subject_type,subject_id,provider,provider_customer_id,provider_subscription_id,plan_code,status,metadata)
+       VALUES ('user',$1,$2,$3,$4,$5,'active',$6::jsonb)
+       ON CONFLICT DO NOTHING`,
+      [user.id, grant.provider, grant.provider_customer_id, grant.provider_subscription_id, grant.plan_code,
+        JSON.stringify({ checkoutId: grant.provider_checkout_id })]
+    );
+  }
+
+  const paymentId = grant.provider_payment_id || `checkout:${grant.provider_checkout_id}`;
+  await db.query(
+    `INSERT INTO payments(provider,provider_payment_id,provider_checkout_id,subject_type,subject_id,plan_code,amount_cents,currency,status,paid_at,metadata)
+     VALUES ($1,$2,$3,'user',$4,$5,$6,$7,'paid',COALESCE($8,now()),$9::jsonb)
+     ON CONFLICT(provider,provider_payment_id) DO NOTHING`,
+    [grant.provider,paymentId,grant.provider_checkout_id,user.id,grant.plan_code,grant.amount_cents,grant.currency,grant.completed_at,
+      JSON.stringify({ source: 'checkout-grant-claim' })]
+  );
+
+  await db.query(`UPDATE checkout_grants SET status='claimed',claimed_at=now() WHERE id=$1`, [grant.id]);
+}
+
 export async function provisionFromInvite(db, invite, user) {
   const role = invite.target_role;
   const metadata = invite.metadata || {};
@@ -49,6 +91,7 @@ export async function provisionFromInvite(db, invite, user) {
   } else if (role === 'solo_client') {
     workspaceId = PLATFORM_DIRECT_WORKSPACE_ID;
     await addMembership(db, workspaceId, user.id, 'client');
+    await claimPaidSoloGrant(db, invite, user);
   } else if (role === 'independent_trainer') {
     const workspaceName = String(metadata.workspaceName || metadata.workspace_name || `${user.display_name} Coaching`).slice(0, 100);
     const slug = await uniqueWorkspaceSlug(db, workspaceName);
@@ -73,7 +116,7 @@ export async function provisionFromInvite(db, invite, user) {
     await db.query(
       `INSERT INTO organization_profiles(workspace_id,legal_name,default_locale,timezone)
        VALUES ($1,$2,$3,$4) ON CONFLICT (workspace_id) DO NOTHING`,
-      [workspaceId, metadata.legalName || null, metadata.defaultLocale || user.locale || 'en', metadata.timezone || 'Europe/Berlin']
+      [workspaceId, metadata.legalName || null, metadata.defaultLocale || user.locale || 'uk', metadata.timezone || 'Europe/Berlin']
     );
   } else if (role === 'organization_admin') {
     if (!workspaceId) throw new Error('organization admin invite has no workspace');
