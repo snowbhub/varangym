@@ -4,14 +4,14 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#101114" />
-  <title>varangym</title>
-  <link rel="stylesheet" href="/styles.css" />
+  <title>VARANGYM Manage</title>
+  <link rel="stylesheet" href="/manage/styles.css" />
 </head>
 <body>
   <header class="topbar">
     <div>
       <div class="brand">VARANGYM</div>
-      <div class="subbrand">training · coach · business</div>
+      <div class="subbrand">coach · business · admin</div>
     </div>
     <button id="logoutBtn" class="ghost hidden">Вийти</button>
   </header>
@@ -19,14 +19,15 @@
   <main class="shell">
     <section id="authView" class="auth-grid">
       <article class="card hero-card">
-        <div class="eyebrow">VARANGYM</div>
-        <h1>Одна платформа для тренувань, тренерів і фітнес-бізнесів.</h1>
-        <p>Це staging-версія нового varangym. Реєстрація відбувається за кодом запрошення, а роль і доступ визначаються самим кодом.</p>
+        <div class="eyebrow">VARANGYM MANAGEMENT</div>
+        <h1>Керування тренерами, клієнтами та бізнесом.</h1>
+        <p>Клієнтська програма з тренуваннями працює на головній сторінці VARANGYM. Ця зона тільки для Coach, Business та Platform Admin.</p>
+        <a class="ghost" href="/">Відкрити Training App</a>
       </article>
 
       <article class="card">
         <h2>Увійти</h2>
-        <p class="muted">Використовується Passkey — Face ID, Touch ID, Windows Hello або ключ безпеки.</p>
+        <p class="muted">Використовується той самий Passkey та акаунт VARANGYM.</p>
         <button id="loginBtn" class="primary full">Увійти з Passkey</button>
       </article>
 
@@ -44,7 +45,7 @@
     <section id="appView" class="hidden">
       <div class="dashboard-head">
         <div>
-          <div class="eyebrow">varangym</div>
+          <div class="eyebrow">varangym manage</div>
           <h1 id="hello">Панель</h1>
           <p id="identity" class="muted"></p>
         </div>
@@ -59,7 +60,7 @@
     <div id="toast" class="toast hidden"></div>
   </main>
 
-  <script type="module" src="/app.js"></script>
-  <script type="module" src="/runtime.js"></script>
+  <script type="module" src="/manage/app.js"></script>
+  <script type="module" src="/manage/runtime.js"></script>
 </body>
 </html>
