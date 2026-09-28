@@ -112,19 +112,68 @@ async function persistenceDiagnostics() {
   };
 }
 
+async function canViewClient(viewer, clientId, workspaceId=null) {
+  if (viewer.is_platform_admin || viewer.id === clientId) return true;
+  const params=[viewer.id,clientId];
+  let workspaceClause='';
+  if (workspaceId) { params.push(workspaceId); workspaceClause=' AND l.workspace_id=$3'; }
+  const trainer=await query(`SELECT 1 FROM trainer_client_links l
+    WHERE l.trainer_user_id=$1 AND l.client_user_id=$2 AND l.status='active'${workspaceClause} LIMIT 1`,params);
+  if (trainer.rowCount) return true;
+  if (!workspaceId) return false;
+  const r=await roles(viewer.id,workspaceId);
+  if(!r.has('owner')&&!r.has('admin')) return false;
+  const member=await query(`SELECT 1 FROM trainer_client_links WHERE workspace_id=$1 AND client_user_id=$2 AND status='active' LIMIT 1`,[workspaceId,clientId]);
+  return !!member.rowCount;
+}
+
+async function clientAnalytics(req,res,url,clientId) {
+  const viewer=await requireUser(req,res); if(!viewer) return;
+  const workspaceId=url.searchParams.get('workspaceId')||null;
+  if(!await canViewClient(viewer,clientId,workspaceId)) return json(res,403,{error:'forbidden'});
+  const days=daysParam(url);
+  const profile=await query(`SELECT id,display_name,email,locale,created_at FROM users WHERE id=$1 AND status='active'`,[clientId]);
+  if(!profile.rowCount) return json(res,404,{error:'client not found'});
+
+  const [daily,weights,recent,exerciseSeries,summary]=await Promise.all([
+    dailyActivity('WHERE w.user_id=$1',[clientId],days),
+    query(`SELECT measured_at,weight FROM bodyweights WHERE user_id=$1 AND measured_at>=now()-interval '365 days' ORDER BY measured_at`,[clientId]),
+    query(`SELECT w.id,w.name,w.started_at,w.finished_at,
+      count(DISTINCT we.id)::int exercises,
+      count(ws.id) FILTER(WHERE ws.done=true)::int completed_sets,
+      COALESCE(sum(CASE WHEN ws.done THEN COALESCE(ws.weight,0)*COALESCE(ws.reps,0) ELSE 0 END),0)::numeric volume
+      FROM workouts w LEFT JOIN workout_exercises we ON we.workout_id=w.id LEFT JOIN workout_sets ws ON ws.workout_exercise_id=we.id
+      WHERE w.user_id=$1 GROUP BY w.id,w.name,w.started_at,w.finished_at ORDER BY w.started_at DESC LIMIT 20`,[clientId]),
+    query(`SELECT COALESCE(t.name,e.legacy_key,we.snapshot_name,'Exercise') name,
+      date_trunc('day',w.started_at)::date day,
+      max(ws.weight) FILTER(WHERE ws.done=true) max_weight,
+      max(ws.reps) FILTER(WHERE ws.done=true) max_reps,
+      max(CASE WHEN ws.done=true AND ws.weight IS NOT NULL AND ws.reps IS NOT NULL AND ws.reps>0 THEN ws.weight*(1+ws.reps/30.0) END) estimated_1rm,
+      count(*) FILTER(WHERE ws.done=true)::int completed_sets
+      FROM workouts w JOIN workout_exercises we ON we.workout_id=w.id
+      LEFT JOIN exercises e ON e.id=we.exercise_id LEFT JOIN exercise_translations t ON t.exercise_id=e.id AND t.locale='en'
+      LEFT JOIN workout_sets ws ON ws.workout_exercise_id=we.id
+      WHERE w.user_id=$1 AND w.started_at>=now()-($2::int || ' days')::interval
+      GROUP BY 1,2 HAVING count(*) FILTER(WHERE ws.done=true)>0 ORDER BY day,name`,[clientId,days]),
+    query(`SELECT count(DISTINCT w.id) FILTER(WHERE w.started_at>=now()-($2::int || ' days')::interval)::int workouts,
+      count(ws.id) FILTER(WHERE ws.done=true AND w.started_at>=now()-($2::int || ' days')::interval)::int completed_sets,
+      COALESCE(sum(CASE WHEN ws.done=true AND w.started_at>=now()-($2::int || ' days')::interval THEN COALESCE(ws.weight,0)*COALESCE(ws.reps,0) ELSE 0 END),0)::numeric volume,
+      max(w.started_at) last_workout_at
+      FROM workouts w LEFT JOIN workout_exercises we ON we.workout_id=w.id LEFT JOIN workout_sets ws ON ws.workout_exercise_id=we.id WHERE w.user_id=$1`,[clientId,days])
+  ]);
+  return json(res,200,{scope:'client',days,client:profile.rows[0],summary:summary.rows[0],daily,weights:weights.rows,recentWorkouts:recent.rows,exerciseSeries:exerciseSeries.rows});
+}
+
 async function adminAnalytics(req,res,url) {
   const user=await requireUser(req,res); if(!user) return;
   if(!user.is_platform_admin) return json(res,403,{error:'forbidden'});
   const days=daysParam(url);
   const [daily,top,revenue,users,subs,plans,persistence]=await Promise.all([
-    dailyActivity('WHERE 1=1',[],days),
-    topExercises('WHERE 1=1',[],days),
-    revenueSummary('',[],days),
+    dailyActivity('WHERE 1=1',[],days), topExercises('WHERE 1=1',[],days), revenueSummary('',[],days),
     query(`SELECT count(*)::int total,
       count(*) FILTER (WHERE created_at>=now()-($1::int || ' days')::interval)::int new_users,
       count(*) FILTER (WHERE id IN (SELECT DISTINCT user_id FROM workouts WHERE started_at>=now()-interval '7 days'))::int active_7d,
-      count(*) FILTER (WHERE id IN (SELECT DISTINCT user_id FROM workouts WHERE started_at>=now()-interval '30 days'))::int active_30d
-      FROM users`,[days]),
+      count(*) FILTER (WHERE id IN (SELECT DISTINCT user_id FROM workouts WHERE started_at>=now()-interval '30 days'))::int active_30d FROM users`,[days]),
     query(`SELECT plan_code,status,count(*)::int count FROM subscriptions GROUP BY plan_code,status ORDER BY plan_code,status`),
     query(`SELECT code,audience,billing_kind,interval_unit,price_cents,currency,trainer_limit,client_limit,metadata FROM billing_plans WHERE active=true ORDER BY sort_order`),
     persistenceDiagnostics()
@@ -146,16 +195,13 @@ async function coachAnalytics(req,res,url) {
   }
   const clientSub=`SELECT client_user_id FROM trainer_client_links WHERE workspace_id=$1 AND trainer_user_id=$2 AND status='active'`;
   const [daily,top,clients]=await Promise.all([
-    dailyActivity(`WHERE w.user_id IN (${clientSub})`,[workspaceId,trainerId],days),
-    topExercises(`WHERE w.user_id IN (${clientSub})`,[workspaceId,trainerId],days),
-    query(`SELECT u.id,u.display_name,u.email,
-      max(w.started_at) AS last_workout_at,
+    dailyActivity(`WHERE w.user_id IN (${clientSub})`,[workspaceId,trainerId],days), topExercises(`WHERE w.user_id IN (${clientSub})`,[workspaceId,trainerId],days),
+    query(`SELECT u.id,u.display_name,u.email,max(w.started_at) AS last_workout_at,
       count(w.id) FILTER (WHERE w.started_at>=now()-($3::int || ' days')::interval)::int workouts_period,
       count(w.id) FILTER (WHERE w.started_at>=now()-interval '7 days')::int workouts_7d,
       (SELECT weight FROM bodyweights b WHERE b.user_id=u.id ORDER BY measured_at DESC LIMIT 1) AS latest_weight,
       (SELECT weight FROM bodyweights b WHERE b.user_id=u.id AND measured_at<=now()-interval '30 days' ORDER BY measured_at DESC LIMIT 1) AS weight_30d_ago
-      FROM trainer_client_links l JOIN users u ON u.id=l.client_user_id
-      LEFT JOIN workouts w ON w.user_id=u.id
+      FROM trainer_client_links l JOIN users u ON u.id=l.client_user_id LEFT JOIN workouts w ON w.user_id=u.id
       WHERE l.workspace_id=$1 AND l.trainer_user_id=$2 AND l.status='active'
       GROUP BY u.id,u.display_name,u.email ORDER BY max(w.started_at) DESC NULLS LAST,u.display_name`,[workspaceId,trainerId,days])
   ]);
@@ -170,10 +216,8 @@ async function businessAnalytics(req,res,url) {
   const days=daysParam(url);
   const memberSub=`SELECT client_user_id FROM trainer_client_links WHERE workspace_id=$1 AND status='active'`;
   const [daily,top,trainers,revenue]=await Promise.all([
-    dailyActivity(`WHERE w.user_id IN (${memberSub})`,[workspaceId],days),
-    topExercises(`WHERE w.user_id IN (${memberSub})`,[workspaceId],days),
-    query(`SELECT t.id,t.display_name,t.email,
-      count(DISTINCT l.client_user_id)::int clients,
+    dailyActivity(`WHERE w.user_id IN (${memberSub})`,[workspaceId],days), topExercises(`WHERE w.user_id IN (${memberSub})`,[workspaceId],days),
+    query(`SELECT t.id,t.display_name,t.email,count(DISTINCT l.client_user_id)::int clients,
       count(DISTINCT w.id) FILTER (WHERE w.started_at>=now()-($2::int || ' days')::interval)::int workouts_period,
       count(DISTINCT w.user_id) FILTER (WHERE w.started_at>=now()-interval '7 days')::int active_clients_7d
       FROM workspace_memberships m JOIN users t ON t.id=m.user_id
@@ -191,6 +235,8 @@ const server=http.createServer(async(req,res)=>{
   if(req.method==='GET'&&url.pathname==='/analytics/admin') return adminAnalytics(req,res,url).catch(e=>{console.error(e);json(res,500,{error:'server error'})});
   if(req.method==='GET'&&url.pathname==='/analytics/coach') return coachAnalytics(req,res,url).catch(e=>{console.error(e);json(res,500,{error:'server error'})});
   if(req.method==='GET'&&url.pathname==='/analytics/business') return businessAnalytics(req,res,url).catch(e=>{console.error(e);json(res,500,{error:'server error'})});
+  const clientMatch=req.method==='GET'&&url.pathname.match(/^\/analytics\/client\/([0-9a-fA-F-]{36})$/);
+  if(clientMatch) return clientAnalytics(req,res,url,clientMatch[1]).catch(e=>{console.error(e);json(res,500,{error:'server error'})});
   if(req.method==='GET'&&url.pathname==='/health') return json(res,200,{ok:true,service:'varangym-analytics'});
   return json(res,404,{error:'not found'});
 });
