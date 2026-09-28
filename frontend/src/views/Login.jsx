@@ -54,6 +54,17 @@ export default function Login() {
   const { setUser, adoptProfile, setGuest } = useStore()
   const config = useStore(s => s.config)
   const canGuest = guestAllowed(config)
+  const inviteOpened = useRef(false)
+
+  // A trainer/admin shares the link, the client taps it, and lands directly in the normal
+  // openGym registration sheet with the invite already filled — no management/dashboard detour.
+  useEffect(() => {
+    if (DEMO || inviteOpened.current || !webauthnOK() || !inviteFromLocation()) return
+    inviteOpened.current = true
+    const timer = setTimeout(() => useUI.getState().openSheet(close => <RegisterSheet close={close} />), 120)
+    return () => clearTimeout(timer)
+  }, [])
+
   const signIn = async () => {
     try { const u = await passkeyLogin(); setUser(u); await adoptProfile(askAddDeviceData); useUI.getState().toast(t('Welcome back, {0}', u.name)) }
     catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(e.message || t('Sign-in failed')) }
