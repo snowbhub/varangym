@@ -1,7 +1,7 @@
 {
-  "name": "openGym",
-  "short_name": "openGym",
-  "description": "Personal gym & body weight tracker",
+  "name": "VARANGYM",
+  "short_name": "varangym",
+  "description": "Training, coaching and fitness platform",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
