@@ -104,7 +104,13 @@ export async function consumeInvite(db, inviteId, userId) {
   const invite = rows[0];
   if (!inviteIsUsable(invite)) throw Object.assign(new Error('invite is no longer valid'), { status: 403 });
   await db.query('UPDATE invites SET use_count=use_count+1 WHERE id=$1', [invite.id]);
-  await db.query('INSERT INTO invite_redemptions(invite_id,user_id) VALUES ($1,$2)', [invite.id, userId]);
+  // Registration currently consumes the invite before the user row is inserted. Keep the
+  // redemption history best-effort here and let the surrounding registration transaction add
+  // the user first in a later refactor. `use_count` is the authoritative gate meanwhile.
+  const userExists = await db.query('SELECT 1 FROM users WHERE id=$1', [userId]);
+  if (userExists.rowCount) {
+    await db.query('INSERT INTO invite_redemptions(invite_id,user_id) VALUES ($1,$2)', [invite.id, userId]);
+  }
   return invite;
 }
 
