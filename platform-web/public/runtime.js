@@ -14,7 +14,7 @@ function vgEsc(v) {
 }
 
 function vgInviteUrl(code) {
-  const u = new URL(location.origin + location.pathname);
+  const u = new URL('/', location.origin);
   u.searchParams.set('invite', code);
   return u.toString();
 }
@@ -32,6 +32,20 @@ async function vgApi(path) {
   if (!r.ok) throw new Error(d.error || `HTTP ${r.status}`);
   return d;
 }
+
+// /manage is never a client screen. A signed-in athlete who follows an old management URL
+// is returned to the full workout app instead of seeing invites/workspaces/admin internals.
+async function vgGuardManagement() {
+  try {
+    const me = await vgApi('/api/me');
+    const memberships = me.memberships || [];
+    const allowed = !!me.user?.is_platform_admin || memberships.some(m => ['owner', 'admin', 'trainer'].includes(m.role));
+    if (!allowed) location.replace('/');
+  } catch {
+    // Not signed in: leave the management login visible. Authorization is still server-side.
+  }
+}
+vgGuardManagement();
 
 async function vgRenderInviteHistory() {
   const host = document.querySelector('#inviteResult');
@@ -67,7 +81,7 @@ async function vgRenderInviteHistory() {
           <div class="row-main">
             <div class="row-title">${vgEsc(i.target_role)} · ${vgEsc(status)}</div>
             <div class="row-sub">Використано ${i.use_count}/${i.max_uses} · до ${new Date(i.expires_at).toLocaleString()}</div>
-            ${code ? `<div class="code" style="margin-top:8px;font-size:18px">${vgEsc(code)}</div>` : '<div class="row-sub" style="margin-top:8px">Код показується лише на пристрої, де його створили.</div>'}
+            ${code ? `<div class="code" style="margin-top:8px;font-size:18px">${vgEsc(code)}</div>` : '<div class="row-sub" style="margin-top:8px">Секретний код не зберігається відкритим на сервері.</div>'}
           </div>
           ${code ? `<div class="actions"><button class="ghost vg-copy-code" data-code="${vgEsc(code)}">Код</button><button class="ghost vg-copy-link" data-link="${vgEsc(link)}">Лінк</button></div>` : ''}
         </div>`;
@@ -80,7 +94,6 @@ async function vgRenderInviteHistory() {
   }
 }
 
-// Capture successful invite creation responses without changing the main app module.
 const vgOriginalFetch = window.fetch.bind(window);
 window.fetch = async (...args) => {
   const response = await vgOriginalFetch(...args);
@@ -115,7 +128,6 @@ const observer = new MutationObserver(() => {
 });
 observer.observe(document.documentElement, { childList: true, subtree: true });
 
-// Refresh invite history whenever workspace selection changes.
 document.addEventListener('change', e => {
   if (e.target?.id === 'inviteWorkspace') vgRenderInviteHistory();
 });
