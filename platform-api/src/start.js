@@ -33,16 +33,26 @@ if (process.env.BOOTSTRAP_ADMIN_CODE) {
   }, 1000).unref();
 }
 
+function toClientPath(raw) {
+  if (raw === '/api/me') return '/client/me';
+  if (raw === '/api/config') return '/client/config';
+  if (raw === '/api/data' || raw.startsWith('/api/data/')) return '/client' + raw.slice('/api'.length);
+  if (raw === '/api/activity') return '/client/activity';
+  if (raw === '/api/logout/all') return '/client/logout/all';
+  if (raw === '/api/pair/create') return '/client/pair/create';
+  if (raw === '/api/pair/redeem') return '/client/pair/redeem';
+  if (raw === '/api/push/rest-timer') return '/client/push/rest-timer';
+  if (raw === '/api/push/rest-timer/cancel') return '/client/push/rest-timer/cancel';
+  return null;
+}
+
 function upstreamFor(req) {
   const raw = String(req.url || '/');
 
-  // The original openGym React client remains the athlete UI. These compatibility routes
-  // give it the same per-profile sync contract while the data lives in VARANGYM PostgreSQL.
-  if (raw === '/api/me') return { port: clientPort, path: '/client/me' };
-  if (raw === '/api/config') return { port: clientPort, path: '/client/config' };
-  if (raw === '/api/data' || raw.startsWith('/api/data/')) {
-    return { port: clientPort, path: '/client' + raw.slice('/api'.length) };
-  }
+  // The original openGym React client remains the athlete UI. These routes preserve its
+  // server contract while auth and state now live in VARANGYM PostgreSQL.
+  const clientPath = toClientPath(raw);
+  if (clientPath) return { port: clientPort, path: clientPath };
 
   if (raw === '/api/invites' || raw.startsWith('/api/invites/')) {
     return { port: accessPort, path: raw.slice('/api'.length) || '/invites' };
@@ -106,4 +116,4 @@ function shutdown(signal) {
   });
 }
 
-for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, () => shutdown(signal));
+for (const signal of ['SIGTERM','SIGINT']) process.on(signal, () => shutdown(signal));
