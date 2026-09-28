@@ -60,6 +60,12 @@ function vgPatchManagementNav() {
 async function vgRenderInviteHistory() {
   const host = document.querySelector('#inviteResult');
   if (!host) return;
+
+  // app.js had an early staging-only history renderer. Hide it now that the access service
+  // can safely recover encrypted invite codes for authorized managers.
+  const legacy = document.querySelector('#inviteHistory');
+  if (legacy) legacy.style.display = 'none';
+
   let box = document.querySelector('#vgInviteHistory');
   if (!box) {
     box = document.createElement('div');
@@ -85,13 +91,13 @@ async function vgRenderInviteHistory() {
       <div class="list">${items.length ? items.map(i => {
         const local = recent[i.id];
         const status = vgStatus(i);
-        const code = local?.code || '';
+        const code = i.code || local?.code || '';
         const link = code ? vgInviteUrl(code) : '';
         return `<div class="row" style="align-items:flex-start">
           <div class="row-main">
             <div class="row-title">${vgEsc(i.target_role)} · ${vgEsc(status)}</div>
             <div class="row-sub">Використано ${i.use_count}/${i.max_uses} · до ${new Date(i.expires_at).toLocaleString()}</div>
-            ${code ? `<div class="code" style="margin-top:8px;font-size:18px">${vgEsc(code)}</div>` : '<div class="row-sub" style="margin-top:8px">Секретний код не зберігається відкритим на сервері.</div>'}
+            ${code ? `<div class="code" style="margin-top:8px;font-size:18px">${vgEsc(code)}</div>` : '<div class="row-sub" style="margin-top:8px">Старий код був створений до ввімкнення зашифрованого відновлення.</div>'}
           </div>
           ${code ? `<div class="actions"><button class="ghost vg-copy-code" data-code="${vgEsc(code)}">Код</button><button class="ghost vg-copy-link" data-link="${vgEsc(link)}">Лінк</button></div>` : ''}
         </div>`;
