@@ -28,8 +28,13 @@ function exerciseConfig(row) {
     if (n != null) out[key] = n;
   }
   if (p.side === true) out.side = true;
+  // Built-in exercises know their body-weight semantics from the catalogue. Trainer-created
+  // exercises do not, so carry the normalized tracking mode into openGym explicitly.
   if (p.bodyweight != null) out.bodyweight = !!p.bodyweight;
+  else if (!row.legacy_key && row.tracking_mode === 'bodyweight') out.bodyweight = true;
   if (p.prog) out.prog = String(p.prog);
+  if (p.intensifier) out.intensifier = p.intensifier;
+  if (p.sg) out.sg = p.sg;
   if (row.coach_notes) out.note = String(row.coach_notes);
   return out;
 }
@@ -37,12 +42,17 @@ function exerciseConfig(row) {
 function customExercise(row) {
   if (row.legacy_key) return null;
   const id = `vgx-${row.exercise_id}`;
-  const primary = row.primary_muscle_key || 'full body';
+  const meta = row.metadata && typeof row.metadata === 'object' ? row.metadata : {};
+  const primary = row.primary_muscle_key || meta.target || 'full body';
+  const bodyPart = meta.bodyPart || primary;
+  const secondaries = Array.isArray(meta.secondaryMuscles) ? meta.secondaryMuscles : [];
   return {
     id,
     n: row.exercise_name || 'Coach exercise',
-    bp: primary,
-    tg: primary,
+    bp: bodyPart,
+    tg: meta.target || primary,
+    primaries: [primary],
+    ...(secondaries.length ? { secondaries, sm: secondaries, muscleGroups: [primary, ...secondaries] } : { muscleGroups: [primary] }),
     ...(row.equipment_key ? { eq: row.equipment_key } : {}),
     custom: true,
     varangymAssigned: true
@@ -76,7 +86,7 @@ export async function overlayAssignedPlan(query, user, inputState) {
   const { rows } = await query(
     `SELECT d.id AS day_id,d.weekday,d.sequence_index,d.title,d.position AS day_position,
             pe.position AS exercise_position,pe.prescription,pe.coach_notes,
-            e.id AS exercise_id,e.legacy_key,e.tracking_mode,e.equipment_key,e.primary_muscle_key,e.owner_scope,
+            e.id AS exercise_id,e.legacy_key,e.tracking_mode,e.equipment_key,e.primary_muscle_key,e.owner_scope,e.metadata,
             COALESCE(tl.name,en.name,e.legacy_key) AS exercise_name
        FROM program_days d
        LEFT JOIN program_day_exercises pe ON pe.program_day_id=d.id
