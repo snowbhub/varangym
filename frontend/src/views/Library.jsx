@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { EXDB, BODYPARTS, allExercises, equipmentOf, searchExercises } from '../lib/exercises.js'
@@ -7,12 +7,58 @@ import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { bestWeightFor } from '../lib/history.js'
 import { fmtNum } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
+import { downloadExerciseOffline, exerciseOfflineStatus, offlineMediaSupported, removeExerciseOffline } from '../lib/offline-media.js'
 import { Thumb } from '../components/Media.jsx'
 import { exerciseDetailSheet, addToRoutineSheet, customExSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable, useRevealActiveChip } from '../lib/use-sheet-keyboard.js'
 import { isFav, sortFavouritesFirst } from '../lib/favourites.js'
+import { useUI } from '../store/useUI.js'
+
+function OfflineExerciseButton({ ex }) {
+  const toast = useUI(s => s.toast)
+  const [cached, setCached] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    exerciseOfflineStatus(ex).then(s => { if (live) setCached(!!s.cached) }).catch(() => {})
+    return () => { live = false }
+  }, [ex.id])
+
+  if (!offlineMediaSupported() || (!ex.img && !ex.gif)) return null
+
+  const toggle = async ev => {
+    ev.stopPropagation()
+    if (busy) return
+    setBusy(true)
+    try {
+      if (cached) {
+        await removeExerciseOffline(ex)
+        setCached(false)
+        toast(t('Removed from offline downloads'))
+      } else {
+        await downloadExerciseOffline(ex)
+        setCached(true)
+        toast(t('Exercise downloaded for offline use'))
+      }
+    } catch (e) {
+      toast(e.message || t('Could not download exercise'))
+    }
+    setBusy(false)
+  }
+
+  return <Button
+    size="sm"
+    variant={cached ? 'tinted' : 'ghost'}
+    icon={cached ? 'checkCircle' : 'download'}
+    aria-label={cached ? t('Available offline') : t('Download for offline use')}
+    title={cached ? t('Available offline') : t('Download for offline use')}
+    disabled={busy}
+    onClick={toggle}
+  >{cached ? t('Offline') : ''}</Button>
+}
 
 export default function Library() {
   const nav = useNavigate()
@@ -20,16 +66,14 @@ export default function Library() {
   const [q, setQ] = useState('')
   const [bp, setBp] = useState('')
   const [eq, setEq] = useState('')
-  const [showAll, setShowAll] = useState(false)   // ignore the active equipment profile for this session
+  const [showAll, setShowAll] = useState(false)
   const [shown, setShown] = useState(40)
   const bpStrip = useRef(null), eqStrip = useRef(null)
   const profile = activeProfile(S)
   const base = searchExercises(allExercises(S).filter(e => !bp || e.bp === bp), q)
   const eqFiltered = (profile && !showAll) ? base.filter(e => exAvailable(S, e)) : base
   const eqOpts = equipmentOf(eqFiltered)
-  // Drop the equipment filter if the search narrowed it away, so you never hit a dead end.
   const eqOn = eqOpts.includes(eq) ? eq : ''
-  // Favourites float to the top of whatever the filters left (issue #6), the rest keeps its order.
   const f = sortFavouritesFirst(eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered, S)
   useRevealActiveChip(bpStrip, bp)
   useRevealActiveChip(eqStrip, eqOn)
@@ -47,9 +91,6 @@ export default function Library() {
         {showAll ? t('Filter by "{0}"', profile.name) : t('Show all equipment')}
       </button>
     </div>}
-    {/* Changing body part keeps the equipment filter (issue #71): the eqOn fallback above drops
-        it only for the current view if the new body part has nothing under it, without forgetting
-        the choice. "All" clears it, since it spans every body part. */}
     <div className="chips" ref={bpStrip} style={{ marginBottom: eqOpts.length > 1 ? 8 : 12 }}>
       <button className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setEq(''); setShown(40) }}>{t('All')}</button>
       {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setShown(40) }}>{t(b)}</button>)}
@@ -69,6 +110,7 @@ export default function Library() {
           <Thumb ex={e} />
           <div className="grow"><div className="tt capitalize">{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
           {best > 0 && <span className="tag acc">{fmtNum(best)}</span>}
+          <OfflineExerciseButton ex={e} />
           <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}>{t('Plan')}</Button>
         </div>
       })}
@@ -77,4 +119,3 @@ export default function Library() {
     {f.length > shown && <><div style={{ height: 10 }} /><Button onClick={() => setShown(s => s + 40)}>{t('Show more')}</Button></>}
   </>
 }
-
