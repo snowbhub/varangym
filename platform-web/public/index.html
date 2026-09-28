@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#101114" />
+  <title>varangym</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <div class="brand">VARANGYM</div>
+      <div class="subbrand">training · coach · business</div>
+    </div>
+    <button id="logoutBtn" class="ghost hidden">Вийти</button>
+  </header>
+
+  <main class="shell">
+    <section id="authView" class="auth-grid">
+      <article class="card hero-card">
+        <div class="eyebrow">VARANGYM</div>
+        <h1>Одна платформа для тренувань, тренерів і фітнес-бізнесів.</h1>
+        <p>Це staging-версія нового varangym. Реєстрація відбувається за кодом запрошення, а роль і доступ визначаються самим кодом.</p>
+      </article>
+
+      <article class="card">
+        <h2>Увійти</h2>
+        <p class="muted">Використовується Passkey — Face ID, Touch ID, Windows Hello або ключ безпеки.</p>
+        <button id="loginBtn" class="primary full">Увійти з Passkey</button>
+      </article>
+
+      <article class="card">
+        <h2>Створити профіль</h2>
+        <label>Код запрошення<input id="regCode" autocomplete="one-time-code" placeholder="ABCD-EFGH" /></label>
+        <label>Імʼя<input id="regName" autocomplete="name" placeholder="Іван" /></label>
+        <label>Email <span class="muted">(якщо код привʼязаний до email)</span><input id="regEmail" type="email" autocomplete="email" placeholder="name@example.com" /></label>
+        <label>Мова<select id="regLocale"><option value="uk">Українська</option><option value="de">Deutsch</option><option value="en">English</option><option value="ru">Русский</option></select></label>
+        <button id="registerBtn" class="primary full">Зареєструватися</button>
+        <div id="regRole" class="hint"></div>
+      </article>
+    </section>
+
+    <section id="appView" class="hidden">
+      <div class="dashboard-head">
+        <div>
+          <div class="eyebrow">varangym</div>
+          <h1 id="hello">Панель</h1>
+          <p id="identity" class="muted"></p>
+        </div>
+        <button id="refreshBtn" class="ghost">Оновити</button>
+      </div>
+
+      <div id="roleBadges" class="badges"></div>
+      <nav id="tabs" class="tabs"></nav>
+      <section id="panel" class="panel"></section>
+    </section>
+
+    <div id="toast" class="toast hidden"></div>
+  </main>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
