@@ -36,6 +36,36 @@ export function inviteHash(code) {
   return hashToken(normalized);
 }
 
+function inviteEncryptionKey() {
+  const raw = process.env.INVITE_ENCRYPTION_KEY || '';
+  if (!raw) return null;
+  return crypto.createHash('sha256').update(raw).digest();
+}
+
+export function encryptInviteCode(code) {
+  const key = inviteEncryptionKey();
+  if (!key) return null;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+  const ciphertext = Buffer.concat([cipher.update(String(code), 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return ['v1', iv.toString('base64url'), tag.toString('base64url'), ciphertext.toString('base64url')].join('.');
+}
+
+export function decryptInviteCode(value) {
+  const key = inviteEncryptionKey();
+  if (!key || !value) return null;
+  try {
+    const [version, ivRaw, tagRaw, cipherRaw] = String(value).split('.');
+    if (version !== 'v1' || !ivRaw || !tagRaw || !cipherRaw) return null;
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivRaw, 'base64url'));
+    decipher.setAuthTag(Buffer.from(tagRaw, 'base64url'));
+    return Buffer.concat([decipher.update(Buffer.from(cipherRaw, 'base64url')), decipher.final()]).toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
 export function parseCookies(header = '') {
   const out = {};
   for (const part of String(header).split(';')) {
