@@ -10,16 +10,18 @@ import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import { askAddDeviceData } from '../sheets.jsx'
 
+function inviteFromLocation() {
+  try { return new URLSearchParams(window.location.search).get('invite') || '' } catch { return '' }
+}
+
 function RegisterSheet({ close }) {
   const { setUser, pushState, pullState, loadConfig } = useStore()
   const config = useStore(s => s.config)
   const [name, setName] = useState('')
-  const [code, setCode] = useState('')
+  const [code, setCode] = useState(inviteFromLocation)
   const inviteOnly = !!config?.invite_only
   const ref = useRef(null)
   useEffect(() => { setTimeout(() => ref.current?.focus(), 250) }, [])
-  // Boot already fetched this; retry here only if that attempt failed, so the invite field still
-  // appears on an instance whose config arrived late rather than never.
   useEffect(() => { loadConfig() }, [loadConfig])
   const go = async () => {
     const n = name.trim()
@@ -30,6 +32,7 @@ function RegisterSheet({ close }) {
       setUser(u); close()
       if (hasData(useStore.getState().S)) { await pushState(); useUI.getState().toast(t('Profile created — data from this device moved into it')) }
       else { await pullState(); useUI.getState().toast(t('Welcome, {0}', u.name)) }
+      if (window.location.search) history.replaceState(null, '', window.location.pathname + window.location.hash)
     } catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(e.message || t('Registration failed')) }
   }
   return <>
@@ -57,11 +60,10 @@ export default function Login() {
   }
   const head = <>
     <div style={{ fontSize: 54, display: 'flex', justifyContent: 'center', color: 'var(--acc)' }}><Icon name="dumbbell" /></div>
-    <h1 style={{ fontSize: 34, fontWeight: 700, letterSpacing: '-.028em', margin: '10px 0 4px' }}>openGym</h1>
+    <h1 style={{ fontSize: 34, fontWeight: 800, letterSpacing: '.12em', margin: '10px 0 4px' }}>VARANGYM</h1>
   </>
   const wrap = { display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: '78vh', textAlign: 'center' }
 
-  // Demo build: no backend to sign in against — the only way in is the local guest profile.
   if (DEMO) return (
     <div className="narrow" style={wrap}>
       {head}
@@ -87,8 +89,6 @@ export default function Login() {
         {canGuest && <div style={{ height: 10 }} />}
       </> : <div className="card small muted" style={{ textAlign: 'left' }}>{canGuest
         ? t("This browser doesn't support passkeys — you can still use openGym locally on this device.")
-        // Without passkeys and without the guest entrance there is no way in from this browser,
-        // so say that plainly instead of offering a local profile that cannot be created.
         : t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</div>}
       {canGuest && <Button variant="ghost" className="dim" onClick={() => setGuest(true)}>{t('Continue without account')}</Button>}
       <div className="dim small" style={{ marginTop: 26, lineHeight: 1.5 }}>{t('Passkeys use {0} — no passwords.', BIO)}<br />{t('Each profile keeps its own plan, workouts & body weight.')}</div>
