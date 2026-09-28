@@ -1,4 +1,4 @@
-import { inviteCode, inviteHash, slugify } from './security.js';
+import { encryptInviteCode, inviteCode, inviteHash, slugify } from './security.js';
 
 export const PLATFORM_DIRECT_WORKSPACE_ID = '00000000-0000-0000-0000-000000000001';
 
@@ -104,9 +104,6 @@ export async function consumeInvite(db, inviteId, userId) {
   const invite = rows[0];
   if (!inviteIsUsable(invite)) throw Object.assign(new Error('invite is no longer valid'), { status: 403 });
   await db.query('UPDATE invites SET use_count=use_count+1 WHERE id=$1', [invite.id]);
-  // Registration currently consumes the invite before the user row is inserted. Keep the
-  // redemption history best-effort here and let the surrounding registration transaction add
-  // the user first in a later refactor. `use_count` is the authoritative gate meanwhile.
   const userExists = await db.query('SELECT 1 FROM users WHERE id=$1', [userId]);
   if (userExists.rowCount) {
     await db.query('INSERT INTO invite_redemptions(invite_id,user_id) VALUES ($1,$2)', [invite.id, userId]);
@@ -178,11 +175,12 @@ export async function createInviteForActor(db, actor, input) {
   }
 
   const code = inviteCode(maxUses > 1 ? 3 : 2, 4);
+  const encryptedCode = encryptInviteCode(code);
   const { rows } = await db.query(
-    `INSERT INTO invites(token_hash,workspace_id,created_by_user_id,target_role,trainer_user_id,email,max_uses,expires_at,metadata)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,now()+($8 || ' days')::interval,$9::jsonb)
+    `INSERT INTO invites(token_hash,token_encrypted,workspace_id,created_by_user_id,target_role,trainer_user_id,email,max_uses,expires_at,metadata)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,now()+($9 || ' days')::interval,$10::jsonb)
      RETURNING id,workspace_id,target_role,trainer_user_id,email,max_uses,use_count,expires_at,created_at`,
-    [inviteHash(code), workspaceId, actor.id, targetRole, trainerUserId, input.email || null, maxUses, String(expiresInDays), JSON.stringify(metadata)]
+    [inviteHash(code), encryptedCode, workspaceId, actor.id, targetRole, trainerUserId, input.email || null, maxUses, String(expiresInDays), JSON.stringify(metadata)]
   );
   return { code, invite: rows[0] };
 }
