@@ -8,6 +8,7 @@ import {
   getLang, dateLocale, t, instrFor, exerciseNameFor, exerciseNameSearchText, getVersion,
   baseLang, derivePack, _setLangState
 } from './i18n-core.js'
+import { ukrainianizeInstructions } from './uk-instructions.js'
 
 export {
   LANGS, INSTR_LANGS, EXERCISE_NAME_LANGS, DATE_LOCALES, DERIVED_LOCALES,
@@ -28,13 +29,27 @@ async function loadLocale(base) {
   try { main = (await localePacks['../locales/' + base + '.js']()).default || {} } catch { main = {} }
   if (base !== 'uk') return main
 
-  // Ukrainian is being completed in reviewable chunks instead of one unmaintainable 100k file.
-  // The hand-curated main pack wins over the broad extra packs when a key exists in both.
   const extras = {}
   for (const path of Object.keys(ukExtraPacks).sort()) {
     try { Object.assign(extras, (await ukExtraPacks[path]()).default || {}) } catch {}
   }
   return { ...extras, ...main }
+}
+
+async function loadInstructions(base) {
+  if (base === 'en' || !INSTR_LANGS.includes(base)) return null
+  try {
+    // The upstream catalogue has a complete Russian instruction dataset but no Ukrainian one.
+    // Reuse its exercise-id coverage and translate the coaching vocabulary to Ukrainian so every
+    // exercise has instructions instead of silently falling back to English.
+    if (base === 'uk') {
+      const ru = (await instrPacks['../instr/ru.js']()).default
+      return ukrainianizeInstructions(ru)
+    }
+    return (await instrPacks['../instr/' + base + '.js']()).default
+  } catch {
+    return null
+  }
 }
 
 export async function setLang(l) {
@@ -43,12 +58,14 @@ export async function setLang(l) {
   const base = baseLang(l)
   let dict = {}, instr = null, exerciseNames = null
   dict = await loadLocale(base)
-  try { instr = base === 'en' || !INSTR_LANGS.includes(base) ? null : (await instrPacks['../instr/' + base + '.js']()).default } catch (e) { instr = null }
+  instr = await loadInstructions(base)
   try {
-    exerciseNames = base === 'en' || !EXERCISE_NAME_LANGS.includes(base)
+    // Ukrainian exercise titles are generated from the complete canonical catalogue in
+    // i18n-core.js, so it does not need a giant generated exercise-names file.
+    exerciseNames = base === 'uk' || base === 'en' || !EXERCISE_NAME_LANGS.includes(base)
       ? null
       : (await exerciseNamePacks['../exercise-names/' + base + '.js']()).default
-  } catch (e) { exerciseNames = null }
+  } catch { exerciseNames = null }
   _setLangState(l, derivePack(l, dict), derivePack(l, instr), derivePack(l, exerciseNames))
   notify()
 }
