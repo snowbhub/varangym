@@ -25,7 +25,15 @@ export function inviteCode(groups = 2, groupSize = 4) {
 }
 
 export function inviteHash(code) {
-  return hashToken(normalizeInviteCode(code));
+  const raw = String(code || '').trim().toUpperCase();
+  const normalized = normalizeInviteCode(raw);
+  // Early staging bootstrap invites were generated as 3x5 groups and hashed
+  // with separators included. Keep compatibility for those one-time codes;
+  // all current inviteCode() formats continue to use normalized hashing.
+  if (normalized.length === 15 && /^[A-Z0-9]{5}-[A-Z0-9]{5}-[A-Z0-9]{5}$/.test(raw)) {
+    return hashToken(raw);
+  }
+  return hashToken(normalized);
 }
 
 export function parseCookies(header = '') {
