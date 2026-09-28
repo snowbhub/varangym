@@ -1,7 +1,7 @@
 {
-  "name": "opengym-frontend",
+  "name": "varangym-frontend",
   "private": true,
-  "version": "1.3.8",
+  "version": "1.3.8-varangym.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
