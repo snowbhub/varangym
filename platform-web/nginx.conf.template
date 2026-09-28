@@ -4,12 +4,14 @@ server {
   root /usr/share/nginx/html;
   index index.html;
 
-  # One public backend only. platform-api is the gateway and routes
-  # /api/training/* to the private training process inside its container.
+  # Staging uses the platform API's Railway HTTPS domain. Keep the upstream Host/SNI
+  # separate from the browser Host or Railway will route the proxied request to the web service.
   location /api/ {
     proxy_pass ${API_BACKEND};
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
+    proxy_ssl_server_name on;
+    proxy_ssl_name ${API_HOST};
+    proxy_set_header Host ${API_HOST};
     proxy_set_header X-Forwarded-Proto $scheme;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
     proxy_set_header X-Forwarded-Host $host;
@@ -21,7 +23,9 @@ server {
   location = /health {
     proxy_pass ${API_BACKEND}/health;
     proxy_http_version 1.1;
-    proxy_set_header Host $host;
+    proxy_ssl_server_name on;
+    proxy_ssl_name ${API_HOST};
+    proxy_set_header Host ${API_HOST};
   }
 
   location / {
