@@ -35,6 +35,15 @@ if (process.env.BOOTSTRAP_ADMIN_CODE) {
 
 function upstreamFor(req) {
   const raw = String(req.url || '/');
+
+  // The original openGym React client remains the athlete UI. These compatibility routes
+  // give it the same per-profile sync contract while the data lives in VARANGYM PostgreSQL.
+  if (raw === '/api/me') return { port: clientPort, path: '/client/me' };
+  if (raw === '/api/config') return { port: clientPort, path: '/client/config' };
+  if (raw === '/api/data' || raw.startsWith('/api/data/')) {
+    return { port: clientPort, path: '/client' + raw.slice('/api'.length) };
+  }
+
   if (raw === '/api/invites' || raw.startsWith('/api/invites/')) {
     return { port: accessPort, path: raw.slice('/api'.length) || '/invites' };
   }
