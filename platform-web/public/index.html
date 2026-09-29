@@ -3,61 +3,80 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#101114" />
-  <title>varangym</title>
+  <meta name="theme-color" content="#0b0c0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>VARANGYM</title>
+  <link rel="stylesheet" href="/training.css" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body>
-  <header class="topbar">
-    <div>
-      <div class="brand">VARANGYM</div>
-      <div class="subbrand">training · coach · business</div>
-    </div>
-    <button id="logoutBtn" class="ghost hidden">Вийти</button>
-  </header>
+<body class="unified-shell">
+  <div id="bootView" class="boot-view" aria-label="Завантаження">
+    <div class="boot-skeleton"><span></span><span></span><span></span></div>
+  </div>
 
-  <main class="shell">
-    <section id="authView" class="auth-grid">
-      <article class="card hero-card">
-        <div class="eyebrow">VARANGYM</div>
-        <h1>Одна платформа для тренувань, тренерів і фітнес-бізнесів.</h1>
-        <p>Це staging-версія нового varangym. Реєстрація відбувається за кодом запрошення, а роль і доступ визначаються самим кодом.</p>
-      </article>
-
-      <article class="card">
-        <h2>Увійти</h2>
-        <p class="muted">Використовується Passkey — Face ID, Touch ID, Windows Hello або ключ безпеки.</p>
-        <button id="loginBtn" class="primary full">Увійти з Passkey</button>
-      </article>
-
-      <article class="card">
-        <h2>Створити профіль</h2>
-        <label>Код запрошення<input id="regCode" autocomplete="one-time-code" placeholder="ABCD-EFGH" /></label>
-        <label>Імʼя<input id="regName" autocomplete="name" placeholder="Іван" /></label>
-        <label>Email <span class="muted">(якщо код привʼязаний до email)</span><input id="regEmail" type="email" autocomplete="email" placeholder="name@example.com" /></label>
-        <label>Мова<select id="regLocale"><option value="uk">Українська</option><option value="de">Deutsch</option><option value="en">English</option><option value="ru">Русский</option></select></label>
-        <button id="registerBtn" class="primary full">Зареєструватися</button>
-        <div id="regRole" class="hint"></div>
-      </article>
+  <main id="authView" class="auth-shell hidden">
+    <section class="auth-brand-block">
+      <div class="brand-lockup">VARANGYM</div>
+      <p>Тренування, тренер і бізнес — в одному застосунку.</p>
     </section>
-
-    <section id="appView" class="hidden">
-      <div class="dashboard-head">
-        <div>
-          <div class="eyebrow">varangym</div>
-          <h1 id="hello">Панель</h1>
-          <p id="identity" class="muted"></p>
+    <section class="auth-card">
+      <div class="eyebrow">Акаунт</div>
+      <h1>Увійти</h1>
+      <p class="muted">Один Passkey для всього VARANGYM. Після входу роль автоматично відкриє потрібні панелі.</p>
+      <button id="loginBtn" class="primary full">Увійти з Passkey</button>
+      <details class="register-details">
+        <summary>Створити профіль за кодом</summary>
+        <div class="register-form">
+          <label>Код запрошення<input id="regCode" autocomplete="one-time-code" placeholder="ABCD-EFGH" /></label>
+          <label>Імʼя<input id="regName" autocomplete="name" placeholder="Іван" /></label>
+          <label>Email <span class="muted">(якщо код привʼязаний до email)</span><input id="regEmail" type="email" autocomplete="email" placeholder="name@example.com" /></label>
+          <label>Мова<select id="regLocale"><option value="uk">Українська</option><option value="de">Deutsch</option><option value="en">English</option><option value="ru">Русский</option></select></label>
+          <button id="registerBtn" class="ghost full">Зареєструватися</button>
+          <div id="regRole" class="hint"></div>
         </div>
-        <button id="refreshBtn" class="ghost">Оновити</button>
-      </div>
-
-      <div id="roleBadges" class="badges"></div>
-      <nav id="tabs" class="tabs"></nav>
-      <section id="panel" class="panel"></section>
+      </details>
     </section>
-
-    <div id="toast" class="toast hidden"></div>
   </main>
+
+  <section id="appView" class="app-shell hidden">
+    <header class="appbar">
+      <button id="brandBtn" class="brand-button" type="button" aria-label="Тренування">VARANGYM</button>
+      <button id="accountBtn" class="account-button" type="button" aria-label="Профіль"></button>
+    </header>
+
+    <main class="app-main">
+      <section id="managementSurface" class="screen hidden">
+        <section id="panel"></section>
+      </section>
+
+      <section id="trainingSurface" class="screen hidden">
+        <section id="loading" class="quiet-loading">
+          <div class="skeleton-page"><div></div><div></div><div></div></div>
+        </section>
+        <section id="signedOut" class="empty-state hidden">
+          <h2>Сесія завершилась</h2>
+          <p class="muted">Повернись до входу VARANGYM.</p>
+          <button class="primary" type="button" onclick="location.reload()">До входу</button>
+        </section>
+        <section id="trainingApp" class="hidden">
+          <div class="training-head">
+            <div>
+              <div class="eyebrow">VARANGYM</div>
+              <h1 id="trainingHello">Тренування</h1>
+              <p id="trainingIdentity" class="muted"></p>
+            </div>
+          </div>
+          <div id="modeTabs" class="tabs" aria-hidden="true"></div>
+          <section id="trainingPanel"></section>
+        </section>
+      </section>
+    </main>
+
+    <nav id="bottomNav" class="bottom-nav" aria-label="Навігація"></nav>
+    <div id="trainingToast" class="toast hidden"></div>
+  </section>
+  <div id="toast" class="toast hidden"></div>
 
   <script type="module" src="/app.js"></script>
 </body>
