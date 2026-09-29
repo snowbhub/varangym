@@ -88,6 +88,17 @@ export async function passkeyRegister(name, code, locale = 'uk', email = null) {
   return clientUser(res.user, res.memberships)
 }
 
+export async function passkeyTrialRegister({ name, email, signupRole = 'solo', workspaceName = '', locale = 'uk' }) {
+  const { cid, options } = await api('/api/signup/register/options', {
+    method: 'POST', body: JSON.stringify({ name, email, signupRole, workspaceName })
+  })
+  const cred = await navigator.credentials.create({ publicKey: toCreationOptions(options) })
+  const res = await api('/api/signup/register/verify', {
+    method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred), locale })
+  })
+  return { user: clientUser(res.user, res.memberships), trial: res.trial || null }
+}
+
 export async function passkeyLogin() {
   const { cid, options } = await api('/api/auth/login/options', { method: 'POST', body: '{}' })
   const cred = await navigator.credentials.get({ publicKey: toRequestOptions(options) })
