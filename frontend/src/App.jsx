@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation, useNavig
 import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
+import AccountAccessSettings from './components/AccountAccessSettings.jsx'
 import { ACCENTS, setWeightDecimals } from './lib/format.js'
 import { setLang, useLang } from './lib/i18n.js'
 import { setPlayOnSilent } from './lib/sound.js'
@@ -34,7 +35,7 @@ import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import Settings from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
-import Management from './views/Management.jsx'
+import ManagementMode from './views/ManagementMode.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
@@ -53,6 +54,10 @@ function applyPrefs(theme, accent) {
   de.dataset.accent = ACCENTS[accent] ? accent : 'lime'
   const meta = document.querySelector('meta[name="theme-color"]')
   if (meta) meta.content = de.dataset.theme === 'light' ? '#f2f2f7' : '#000000'
+}
+
+function SettingsWithAccess() {
+  return <><Settings /><AccountAccessSettings /></>
 }
 
 function Shell() {
@@ -121,11 +126,11 @@ function Shell() {
               <Route path="/history" element={<History />} />
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/trainer" element={<Management mode="trainer" />} />
-              <Route path="/business" element={<Management mode="business" />} />
-              <Route path="/admin" element={<Management mode="admin" />} />
+              <Route path="/settings" element={<SettingsWithAccess />} />
               <Route path="/admin/accounts" element={<Admin />} />
+              <Route path="/trainer/*" element={<ManagementMode />} />
+              <Route path="/business/*" element={<ManagementMode />} />
+              <Route path="/admin/*" element={<ManagementMode />} />
               <Route path="/coach" element={<CoachChat />} />
               <Route path="/coach/intake" element={<CoachIntake />} />
               <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
