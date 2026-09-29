@@ -14,7 +14,6 @@ import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { MOBILE } from './lib/mobile.js'
 import { startFlow } from './sheets.jsx'
-import Icon from './components/Icon.jsx'
 import TabBar from './components/TabBar.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
@@ -35,6 +34,7 @@ import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import Settings from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
+import Management from './views/Management.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
@@ -129,13 +129,9 @@ function Shell() {
   useWakeLock(!!S.active && S.keepAwake !== false)
 
   const authed = user || isGuest
-  if (!ready && !authed) return (
-    <div id="app">
-      <div style={{ paddingTop: '44vh', display: 'flex', justifyContent: 'center', fontSize: 34, color: 'var(--label-3)' }}>
-        <Icon name="dumbbell" />
-      </div>
-    </div>
-  )
+  // Boot quietly. A role bridge/logo appearing and disappearing here makes the product feel like
+  // multiple sites stitched together; the shell itself owns the first paint now.
+  if (!ready && !authed) return <div id="app" />
 
   return (
     <>
@@ -158,6 +154,11 @@ function Shell() {
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
               <Route path="/settings" element={<Settings />} />
+              {/* Management is part of this same React application and shares the existing
+                  Passkey session. The views gate themselves with /api/me memberships. */}
+              <Route path="/trainer" element={<Management mode="trainer" />} />
+              <Route path="/business" element={<Management mode="business" />} />
+              <Route path="/admin" element={user?.admin ? <Admin /> : <Management mode="admin" />} />
               {/* The Coach screens gate themselves on the instance config; the routes exist
                   unconditionally so a deep link from a notification lands somewhere sane
                   rather than on the catch-all. */}
@@ -165,7 +166,6 @@ function Shell() {
               <Route path="/coach/intake" element={<CoachIntake />} />
               <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
               <Route path="/coach/setup" element={<CoachSetup />} />
-              <Route path="/admin" element={user?.admin ? <Admin /> : <Navigate to="/home" replace />} />
               <Route path="*" element={<Navigate to="/home" replace />} />
             </Routes>
           )}
