@@ -45,6 +45,9 @@ RUN sed -i 's#</body>#<script src="/varangym-bridge.js" defer></script></body>#'
 
 # Coach / Business / Platform Admin management surface. Client accounts are redirected to `/`.
 COPY platform-web/public /usr/share/nginx/html/manage
+# When management opens the dedicated plan editor with ?mode=coach, land straight in the trainer
+# workspace instead of briefly showing the athlete tab first.
+RUN sed -i "s#let mode = 'client';#let mode = new URLSearchParams(location.search).get('mode') === 'coach' ? 'coach' : 'client';#" /usr/share/nginx/html/manage/training.js
 
 ENV NGINX_PORT=8080
 ENV API_BACKEND=https://platform-api-production.up.railway.app
