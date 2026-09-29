@@ -66,7 +66,7 @@ function OfflineExerciseButton({ ex }) {
       transition: 'color .18s ease, background .18s ease, transform .18s ease',
       transform: cached ? 'scale(1.02)' : 'scale(1)'
     }}
-  ><Icon name={cached ? 'checkCircle' : 'download'} /></button>
+  ><Icon name="download" /></button>
 }
 
 export default function Library() {
