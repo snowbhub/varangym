@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { EXDB, BODYPARTS, allExercises, equipmentOf, searchExercises } from '../lib/exercises.js'
@@ -7,6 +7,7 @@ import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { bestWeightFor } from '../lib/history.js'
 import { fmtNum } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
+import { api } from '../lib/api.js'
 import { downloadExerciseOffline, exerciseOfflineStatus, offlineMediaSupported, removeExerciseOffline } from '../lib/offline-media.js'
 import { Thumb } from '../components/Media.jsx'
 import { exerciseDetailSheet, addToRoutineSheet, customExSheet } from '../sheets.jsx'
@@ -25,7 +26,7 @@ function OfflineExerciseButton({ ex }) {
     let live = true
     exerciseOfflineStatus(ex).then(s => { if (live) setCached(!!s.cached) }).catch(() => {})
     return () => { live = false }
-  }, [ex.id])
+  }, [ex.id, ex.img, ex.gif])
 
   if (!offlineMediaSupported() || (!ex.img && !ex.gif)) return null
 
@@ -49,28 +50,72 @@ function OfflineExerciseButton({ ex }) {
     setBusy(false)
   }
 
-  return <Button
-    size="sm"
-    variant={cached ? 'tinted' : 'ghost'}
-    icon={cached ? 'checkCircle' : 'download'}
+  return <button
+    className="iconbtn"
     aria-label={cached ? t('Available offline') : t('Download for offline use')}
     title={cached ? t('Available offline') : t('Download for offline use')}
     disabled={busy}
     onClick={toggle}
-  >{cached ? t('Offline') : ''}</Button>
+    style={{
+      width: 38,
+      height: 38,
+      flex: '0 0 38px',
+      color: cached ? 'var(--acc)' : 'var(--fg)',
+      background: cached ? 'color-mix(in srgb, var(--acc) 12%, transparent)' : 'transparent',
+      opacity: busy ? .48 : 1,
+      transform: busy ? 'translateY(2px)' : 'none',
+      transition: 'color .22s ease, background .22s ease, opacity .18s ease, transform .18s ease',
+    }}
+  ><Icon name="download" /></button>
 }
 
 export default function Library() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  const user = useStore(s => s.user)
   const [q, setQ] = useState('')
   const [bp, setBp] = useState('')
   const [eq, setEq] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [shown, setShown] = useState(40)
+  const [platformCatalog, setPlatformCatalog] = useState(null)
   const bpStrip = useRef(null), eqStrip = useRef(null)
   const profile = activeProfile(S)
-  const base = searchExercises(allExercises(S).filter(e => !bp || e.bp === bp), q)
+  const locale = String(S.lang || 'uk').slice(0, 16)
+
+  useEffect(() => {
+    let live = true
+    if (!user) { setPlatformCatalog(null); return () => { live = false } }
+    api(`/api/exercise-admin/catalog?locale=${encodeURIComponent(locale)}&limit=2000&offset=0`)
+      .then(d => { if (live) setPlatformCatalog(d.exercises || []) })
+      .catch(() => { if (live) setPlatformCatalog(null) })
+    return () => { live = false }
+  }, [user?.id, locale])
+
+  const catalogue = useMemo(() => {
+    const local = allExercises(S)
+    if (!platformCatalog) return local
+    const remote = new Map(platformCatalog.map(x => [String(x.legacy_key || ''), x]))
+    return local.flatMap(ex => {
+      // User-created exercises are local/profile data and are never hidden by platform catalog policy.
+      const row = remote.get(String(ex.id))
+      if (!row) return EXDB.some(x => x.id === ex.id) ? [] : [ex]
+      const curated = row.admin_translations?.[locale]
+      return [{
+        ...ex,
+        bp: row.body_part || ex.bp,
+        tg: row.primary_muscle_key || ex.tg,
+        eq: row.equipment_key || ex.eq,
+        img: row.image || ex.img,
+        gif: row.gif || ex.gif,
+        localizedName: curated?.name || undefined,
+        localizedInstructions: Array.isArray(curated?.instructions) && curated.instructions.length ? curated.instructions : undefined,
+        desc: curated?.description || ex.desc,
+      }]
+    })
+  }, [S, platformCatalog, locale])
+
+  const base = searchExercises(catalogue.filter(e => !bp || e.bp === bp), q)
   const eqFiltered = (profile && !showAll) ? base.filter(e => exAvailable(S, e)) : base
   const eqOpts = equipmentOf(eqFiltered)
   const eqOn = eqOpts.includes(eq) ? eq : ''
@@ -79,7 +124,7 @@ export default function Library() {
   useRevealActiveChip(eqStrip, eqOn)
 
   return <>
-    <div className="hdr"><div><h1>{t('Exercises')}</h1><div className="sub">{t('{0} exercises with animations', EXDB.length)}</div></div>
+    <div className="hdr"><div><h1>{t('Exercises')}</h1><div className="sub">{t('{0} exercises with animations', platformCatalog?.length || EXDB.length)}</div></div>
       <Button size="sm" variant="tinted" icon="target" onClick={() => nav('/muscles')}>{t('By muscle')}</Button>
     </div>
     <div className="search" style={{ marginBottom: 10 }}><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
