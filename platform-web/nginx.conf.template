@@ -29,15 +29,11 @@ server {
     proxy_set_header Host ${API_HOST};
   }
 
-  # Management is intentionally separate from the athlete experience.
-  # Admins/trainers/business users can open /manage/; clients stay in the full workout app at /.
-  location = /manage { return 302 /manage/; }
-  location ^~ /manage/ {
-    add_header Cache-Control "no-store, no-cache, must-revalidate" always;
-    try_files $uri $uri/ /manage/index.html;
-  }
+  # Old bookmarks must not reopen the retired second management application.
+  # Management now lives in role-aware HashRouter routes inside the main VARANGYM shell.
+  location = /manage { return 302 /#/home; }
+  location = /manage/ { return 302 /#/home; }
 
-  # The real openGym React application, retained as the VARANGYM athlete client.
   location = /index.html {
     add_header Cache-Control "no-cache, must-revalidate" always;
     try_files $uri =404;
