@@ -57,10 +57,11 @@ export function t(s, ...args) {
   return brandText(v)
 }
 
-export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
+export const instrFor = ex => ex?.localizedInstructions || (instr && instr[ex.id]) || ex?.st || []
 
 export const exerciseNameFor = ex => {
   if (!ex) return ''
+  if (ex.localizedName) return ex.localizedName
   const translated = exerciseNames && exerciseNames[ex.id]
   if (lang === 'uk') return translated || ukExerciseName(ex.n || '')
   if (lang === 'ru') return translated || ruExerciseName(ex.n || '')
@@ -72,6 +73,8 @@ export const exerciseNameFor = ex => {
 
 export const exerciseNameSearchText = ex => {
   if (!ex) return ''
+  const curated = ex.localizedName ? `${ex.localizedName} ${ex.n || ''}`.trim() : ''
+  if (curated) return curated
   const translated = exerciseNames && exerciseNames[ex.id]
   if (lang === 'uk') return `${translated || ukExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
   if (lang === 'ru') return `${translated || ruExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
