@@ -9,15 +9,6 @@ const vgPlanApi = async (path, options = {}) => {
   return data;
 };
 
-function vgPlanToast(message, ms = 3600) {
-  const el = document.querySelector('#toast');
-  if (!el) return;
-  el.textContent = message;
-  el.classList.remove('hidden');
-  clearTimeout(vgPlanToast.timer);
-  vgPlanToast.timer = setTimeout(() => el.classList.add('hidden'), ms);
-}
-
 let vgPlanBusy = false;
 let vgPlanTimer = null;
 
@@ -33,15 +24,8 @@ async function vgRenderProfilePlanBridge() {
     const me = await vgPlanApi('/api/me');
     const memberships = me.memberships || [];
     const workspace = memberships.find(m => ['owner', 'admin', 'trainer'].includes(m.role));
-    if (!workspace) return;
+    if (!workspace && !me.user?.is_platform_admin) return;
 
-    const [clientsData, preview] = await Promise.all([
-      vgPlanApi(`/api/coach/clients?workspaceId=${encodeURIComponent(workspace.workspace_id)}`),
-      vgPlanApi(`/api/profile-plan/preview?workspaceId=${encodeURIComponent(workspace.workspace_id)}`)
-    ]);
-
-    const clients = clientsData.clients || [];
-    const days = preview.days || [];
     const card = document.createElement('div');
     card.id = 'vgProfilePlanBridge';
     card.className = 'form-card';
@@ -49,61 +33,24 @@ async function vgRenderProfilePlanBridge() {
     card.innerHTML = `
       <div class="section-title">
         <div>
-          <div class="eyebrow">TRAINING APP → CLIENT</div>
-          <h3>Мій план із звичайного VARANGYM</h3>
+          <div class="eyebrow">VARANGYM PLANS</div>
+          <h3>Програми клієнтів</h3>
         </div>
-        <span class="badge badge-accent">${days.length} дн.</span>
+        <span class="badge badge-accent">окремо для кожного</span>
       </div>
-      <p class="muted">План не збирається тут заново. Відкрий нормальну вкладку «План», склади його тим самим редактором з усіма вправами, підходами та налаштуваннями, а тут тільки передай готовий план клієнту.</p>
-      <div class="list" style="margin:14px 0">
-        ${days.length ? days.map(d => `<div class="row"><div class="row-main"><div class="row-title">${vgEscPlan(d.name)}</div><div class="row-sub">${vgDayName(d.weekday)} · ${d.exercises} вправ</div></div></div>`).join('') : '<div class="empty">У твоєму Training App ще немає розкладу. Спочатку створи план.</div>'}
+      <p class="muted">Тут не треба копіювати один «мій план» між людьми. У редакторі обираєш конкретного клієнта, створюєш його програму, додаєш дні, вправи, підходи, повтори й відпочинок, зберігаєш чернетку та публікуєш саме цьому клієнту.</p>
+      <div class="actions" style="justify-content:flex-start;margin-top:16px">
+        <a class="primary" style="text-decoration:none;display:inline-block" href="/manage/training.html?mode=coach">Відкрити редактор планів</a>
+        <a class="ghost" style="text-decoration:none;display:inline-block" href="/#/plan">Мій особистий план</a>
       </div>
-      <div class="actions" style="margin-bottom:14px">
-        <a class="ghost" href="/#/plan">Відкрити мій План</a>
-      </div>
-      <label>Клієнт
-        <select id="vgPlanClient">
-          ${clients.length ? clients.map(c => `<option value="${vgEscPlan(c.id)}">${vgEscPlan(c.display_name)}${c.email ? ` · ${vgEscPlan(c.email)}` : ''}</option>`).join('') : '<option value="">Клієнтів ще немає</option>'}
-        </select>
-      </label>
-      <button id="vgPublishProfilePlan" class="primary full" ${(!days.length || !clients.length) ? 'disabled' : ''}>Опублікувати цей план клієнту</button>
-      <div class="hint">Після публікації клієнт отримує новий план у своєму звичайному VARANGYM. Історія тренувань, вага та статистика не стираються.</div>
+      <div class="hint">Опублікована версія зберігається в PostgreSQL. Нова версія замінює активне призначення, але історія тренувань і прогрес клієнта залишаються.</div>
     `;
     panel.appendChild(card);
-
-    const publish = card.querySelector('#vgPublishProfilePlan');
-    if (publish) publish.onclick = async () => {
-      const clientId = card.querySelector('#vgPlanClient')?.value;
-      if (!clientId) return;
-      const old = publish.textContent;
-      publish.disabled = true;
-      publish.textContent = 'Публікую…';
-      try {
-        const result = await vgPlanApi('/api/profile-plan/publish', {
-          method: 'POST',
-          body: JSON.stringify({ workspaceId: workspace.workspace_id, clientId })
-        });
-        vgPlanToast(`Готово: v${result.versionNumber}, ${result.days} дн., ${result.exercises} вправ`);
-      } catch (e) {
-        vgPlanToast(e.message, 5200);
-      } finally {
-        publish.disabled = false;
-        publish.textContent = old;
-      }
-    };
   } catch (e) {
-    console.error('[profile-plan-bridge]', e);
+    console.error('[plan-management]', e);
   } finally {
     vgPlanBusy = false;
   }
-}
-
-function vgEscPlan(value) {
-  return String(value ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-}
-
-function vgDayName(day) {
-  return ['Неділя','Понеділок','Вівторок','Середа','Четвер','Пʼятниця','Субота'][Number(day)] || `День ${day}`;
 }
 
 const vgPlanObserver = new MutationObserver(() => {
