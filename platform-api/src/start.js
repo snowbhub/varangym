@@ -11,6 +11,7 @@ const analyticsPort = +(process.env.ANALYTICS_PORT || 3006);
 const billingPort = +(process.env.BILLING_PORT || 3007);
 const signupPort = +(process.env.SIGNUP_PORT || 3008);
 const exerciseAdminPort = +(process.env.EXERCISE_ADMIN_PORT || 3009);
+const adminInsightsPort = +(process.env.ADMIN_INSIGHTS_PORT || 3010);
 
 function spawnApi(label, script, port) {
   const child = spawn(process.execPath, [script], {
@@ -33,6 +34,7 @@ const analyticsApi = spawnApi('analytics API', 'src/analytics-server.js', analyt
 const billingApi = spawnApi('billing API', 'src/billing-server.js', billingPort);
 const signupApi = spawnApi('signup API', 'src/signup-server.js', signupPort);
 const exerciseAdminApi = spawnApi('exercise-admin API', 'src/exercise-admin-server.js', exerciseAdminPort);
+const adminInsightsApi = spawnApi('admin-insights API', 'src/admin-insights-server.js', adminInsightsPort);
 const platform = spawnApi('platform API', 'src/server.js', platformPort);
 
 if (process.env.BOOTSTRAP_ADMIN_CODE) {
@@ -86,6 +88,9 @@ function upstreamFor(req) {
   if (raw === '/api/exercise-admin' || raw.startsWith('/api/exercise-admin/')) {
     return { port: exerciseAdminPort, path: raw.slice('/api'.length) || '/exercise-admin' };
   }
+  if (raw === '/api/admin-insights' || raw.startsWith('/api/admin-insights/')) {
+    return { port: adminInsightsPort, path: raw.slice('/api'.length) || '/admin-insights' };
+  }
   return { port: platformPort, path: raw };
 }
 
@@ -124,7 +129,7 @@ const gateway = http.createServer((req, res) => {
 });
 
 gateway.listen(publicPort, '0.0.0.0', () => {
-  console.log(`[varangym] gateway listening on :${publicPort} -> platform:${platformPort}, training:${trainingPort}, client:${clientPort}, access:${accessPort}, profile-plan:${profilePlanPort}, analytics:${analyticsPort}, billing:${billingPort}, signup:${signupPort}, exercise-admin:${exerciseAdminPort}`);
+  console.log(`[varangym] gateway listening on :${publicPort} -> platform:${platformPort}, training:${trainingPort}, client:${clientPort}, access:${accessPort}, profile-plan:${profilePlanPort}, analytics:${analyticsPort}, billing:${billingPort}, signup:${signupPort}, exercise-admin:${exerciseAdminPort}, admin-insights:${adminInsightsPort}`);
 });
 
 function shutdown(signal) {
@@ -132,7 +137,7 @@ function shutdown(signal) {
   shuttingDown = true;
   console.log(`[varangym] shutting down (${signal})`);
   gateway.close(() => {
-    for (const child of [platform, training, clientApi, accessApi, profilePlanApi, analyticsApi, billingApi, signupApi, exerciseAdminApi]) {
+    for (const child of [platform, training, clientApi, accessApi, profilePlanApi, analyticsApi, billingApi, signupApi, exerciseAdminApi, adminInsightsApi]) {
       if (!child.killed) child.kill(signal);
     }
     setTimeout(() => process.exit(0), 250).unref();
