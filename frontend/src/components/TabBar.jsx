@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, effectiveRoutines } from '../lib/history.js'
 import { todayISO } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
+import { defaultManagementRoute, loadPlatformIdentity } from '../lib/platform-role.js'
 import Icon from './Icon.jsx'
 
 export default function TabBar({ onStart }) {
@@ -11,9 +13,20 @@ export default function TabBar({ onStart }) {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const isGuest = useStore(s => s.isGuest())
+  const [panelTo, setPanelTo] = useState(null)
+
+  useEffect(() => {
+    let live = true
+    if (!user) { setPanelTo(null); return () => { live = false } }
+    loadPlatformIdentity()
+      .then(me => { if (live) setPanelTo(defaultManagementRoute(me)) })
+      .catch(() => { if (live) setPanelTo(null) })
+    return () => { live = false }
+  }, [user?.id])
+
   if (!user && !isGuest) return null
   const cur = loc.pathname.split('/')[1] || 'home'
-  const on = k => cur === k || (cur === 'history' && k === 'stats') || (cur === 'settings' && k === 'home') || (cur === 'muscles' && k === 'library')
+  const on = k => cur === k || (cur === 'history' && k === 'stats') || (cur === 'settings' && k === 'home') || (cur === 'muscles' && k === 'library') || (k === 'panel' && ['trainer', 'business', 'admin'].includes(cur))
 
   const startWorkout = () => {
     if (!S.active) {
@@ -41,7 +54,7 @@ export default function TabBar({ onStart }) {
         <span>{S.active ? (cur === 'workout' ? t('Workout') : t('Resume')) : t('Start')}</span>
       </button>
       <Tab k="stats" icon="chart" to="/stats" label={t('Stats')} />
-      <Tab k="library" icon="list" to="/library" label={t('Exercises')} />
+      {panelTo ? <Tab k="panel" icon="wrench" to={panelTo} label="Panel" /> : <Tab k="library" icon="list" to="/library" label={t('Exercises')} />}
     </nav>
   )
 }
