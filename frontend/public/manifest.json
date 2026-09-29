@@ -1,6 +1,7 @@
 {
+  "id": "./",
   "name": "VARANGYM",
-  "short_name": "varangym",
+  "short_name": "VARANGYM",
   "description": "Plan. Train. Progress.",
   "start_url": "./",
   "scope": "./",
