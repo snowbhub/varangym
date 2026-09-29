@@ -7,7 +7,7 @@ import { DEMO, REPO } from '../lib/demo.js'
 import { guestAllowed } from '../lib/guest.js'
 import { useState, useRef, useEffect } from 'react'
 import BrandMark from '../components/BrandMark.jsx'
-import { Button } from '../components/ui.jsx'
+import { Button, Segmented } from '../components/ui.jsx'
 import { askAddDeviceData } from '../sheets.jsx'
 
 function queryParam(name) {
@@ -16,44 +16,88 @@ function queryParam(name) {
 const inviteFromLocation = () => queryParam('invite')
 const checkoutFromLocation = () => queryParam('checkout')
 
-function RegisterSheet({ close }) {
-  const { setUser, pushState, pullState, loadConfig } = useStore()
-  const config = useStore(s => s.config)
+function RegisterSheet({ close, inviteMode = false }) {
+  const { setUser, pushState, pullState } = useStore()
   const linkCode = inviteFromLocation()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [code, setCode] = useState(linkCode)
-  const inviteOnly = !!config?.invite_only
+  const [accountType, setAccountType] = useState('solo')
+  const [workspaceName, setWorkspaceName] = useState('')
+  const [busy, setBusy] = useState(false)
   const ref = useRef(null)
   useEffect(() => { setTimeout(() => ref.current?.focus(), 250) }, [])
-  useEffect(() => { loadConfig() }, [loadConfig])
+  const usingInvite = !!linkCode || inviteMode
+
   const go = async () => {
     const n = name.trim()
+    const mail = email.trim().toLowerCase()
     if (!n) { useUI.getState().toast(t('Enter a name')); return }
-    if (inviteOnly && !code.trim()) { useUI.getState().toast(t('An invite code is required')); return }
+    if (!usingInvite && !/^\S+@\S+\.\S+$/.test(mail)) { useUI.getState().toast('Введи коректний email'); return }
+    if (usingInvite && !code.trim()) { useUI.getState().toast('Введи код запрошення'); return }
+    if (!usingInvite && accountType !== 'solo' && !workspaceName.trim()) { useUI.getState().toast(accountType === 'business' ? 'Введи назву організації' : 'Введи назву тренерського профілю'); return }
+    setBusy(true)
     try {
-      const u = await passkeyRegister(n, code.trim(), 'uk', email.trim() || null)
-      setUser(u); close()
-      if (hasData(useStore.getState().S)) { await pushState(); useUI.getState().toast(t('Profile created — data from this device moved into it')) }
-      else { await pullState(); useUI.getState().toast(t('Welcome, {0}', u.name)) }
+      let registrationCode = code.trim()
+      let selfServiceTrial = false
+      if (!usingInvite) {
+        const trial = await api('/api/trial/invite', {
+          method: 'POST',
+          body: JSON.stringify({ accountType, email: mail, name: n, workspaceName: workspaceName.trim() || null })
+        })
+        registrationCode = trial.code
+        selfServiceTrial = true
+      }
+      const u = await passkeyRegister(n, registrationCode, 'uk', mail || null)
+      setUser(u)
+      if (selfServiceTrial) await api('/api/trial/activate', { method: 'POST', body: '{}' })
+      close()
+      if (hasData(useStore.getState().S)) {
+        await pushState()
+        useUI.getState().toast(selfServiceTrial ? 'Профіль створено · 30 днів безкоштовно' : t('Profile created — data from this device moved into it'))
+      } else {
+        await pullState()
+        useUI.getState().toast(selfServiceTrial ? '30-денний пробний період активовано' : t('Welcome, {0}', u.name))
+      }
       if (window.location.search) history.replaceState(null, '', window.location.pathname + window.location.hash)
-    } catch (e) { if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(e.message || t('Registration failed')) }
+    } catch (e) {
+      if (e.name !== 'NotAllowedError' && e.name !== 'AbortError') useUI.getState().toast(e.message || t('Registration failed'))
+    } finally { setBusy(false) }
   }
+
   return <>
-    <h3>{t('Create your profile')}</h3>
-    <div className="muted small" style={{ marginBottom: 14 }}>{t('Pick a name, then confirm with {0}. The passkey is saved in your device — no password needed.', BIO)}</div>
-    <input ref={ref} className="input" placeholder={t('Your name')} maxLength={40} value={name} onChange={e => setName(e.target.value)} />
+    <h3>{usingInvite ? 'Реєстрація за кодом' : 'Створити VARANGYM'}</h3>
+    <div className="muted small" style={{ marginBottom: 14 }}>
+      {usingInvite
+        ? `Код визначає роль і привʼязку до тренера або організації. Після цього підтверди профіль через ${BIO}.`
+        : `Обери тип акаунта. Перші 30 днів — безкоштовний пробний період, без автоматичного списання без оформленої оплати.`}
+    </div>
+    {!usingInvite && <div style={{ marginBottom: 12 }}>
+      <Segmented options={[
+        { value: 'solo', label: 'Solo' },
+        { value: 'trainer', label: 'Тренер' },
+        { value: 'business', label: 'Бізнес' },
+      ]} value={accountType} onChange={setAccountType} />
+    </div>}
+    <input ref={ref} className="input" placeholder={t('Your name')} maxLength={80} value={name} onChange={e => setName(e.target.value)} />
     <div style={{ height: 10 }} />
-    <input className="input" type="email" autoComplete="email" placeholder={t('Email (required for paid Solo, optional for trainer invites)')} maxLength={320} value={email} onChange={e => setEmail(e.target.value)} />
-    {inviteOnly && !linkCode && <>
+    <input className="input" type="email" autoComplete="email" placeholder="Email" maxLength={320} value={email} onChange={e => setEmail(e.target.value)} />
+    {!usingInvite && accountType !== 'solo' && <>
       <div style={{ height: 10 }} />
-      <input className="input" placeholder={t('Invite code')} maxLength={40} value={code}
-        onChange={e => setCode(e.target.value.toUpperCase())} style={{ letterSpacing: '.14em', fontWeight: 600, textAlign: 'center' }} />
-      <div className="dim small" style={{ marginTop: 6 }}>{t('This app is invite-only — enter the code you were given.')}</div>
+      <input className="input" placeholder={accountType === 'business' ? 'Назва організації / залу' : 'Назва тренерського профілю'} maxLength={100} value={workspaceName} onChange={e => setWorkspaceName(e.target.value)} />
     </>}
-    {linkCode && <div className="dim small" style={{ marginTop: 8 }}>{t('Invitation accepted — finish creating your profile.')}</div>}
+    {usingInvite && !linkCode && <>
+      <div style={{ height: 10 }} />
+      <input className="input" placeholder="Код запрошення" maxLength={40} value={code}
+        onChange={e => setCode(e.target.value.toUpperCase())} style={{ letterSpacing: '.14em', fontWeight: 600, textAlign: 'center' }} />
+    </>}
+    {linkCode && <div className="dim small" style={{ marginTop: 8 }}>Код з посилання прийнято — заверши створення профілю.</div>}
+    {!usingInvite && <div className="card" style={{ marginTop: 12, padding: 12, textAlign: 'left' }}>
+      <b>{accountType === 'business' ? 'Business 5 / 50' : accountType === 'trainer' ? 'Coach 5' : 'Solo Monthly'}</b>
+      <div className="dim small" style={{ marginTop: 4 }}>Trial: 30 днів. Платний тариф можна змінити пізніше у Налаштуваннях → Підписка.</div>
+    </div>}
     <div style={{ height: 12 }} />
-    <Button variant="primary" onClick={go}>{t('Create passkey')}</Button>
+    <Button variant="primary" disabled={busy} onClick={go}>{busy ? 'Створюю…' : usingInvite ? 'Створити профіль' : 'Почати 30 днів безкоштовно'}</Button>
   </>
 }
 
@@ -85,15 +129,15 @@ function SoloPlans() {
   const price = p => `$${(Number(p.price_cents || 0) / 100).toFixed(Number(p.price_cents) % 100 ? 2 : 0)}${p.billing_kind === 'recurring' ? t('/month') : ''}`
 
   return <div className="card" style={{ marginTop: 22, textAlign: 'left' }}>
-    <div style={{ fontWeight: 800, fontSize: 20 }}>{t('VARANGYM Solo')}</div>
-    <div className="muted small" style={{ marginTop: 5 }}>{t('Train independently with cloud sync, progress history and offline exercise media.')}</div>
+    <div style={{ fontWeight: 800, fontSize: 20 }}>Або Solo одразу без trial</div>
+    <div className="muted small" style={{ marginTop: 5 }}>Для тих, хто хоче відразу оформити Solo Monthly або Lifetime.</div>
     <input className="input" type="email" autoComplete="email" placeholder={t('Your email')} value={email} onChange={e => setEmail(e.target.value)} style={{ marginTop: 14 }} />
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
       {plans.map(p => <Button key={p.code} size="sm" variant={p.billing_kind === 'recurring' ? 'primary' : 'tinted'} disabled={!configured || !!busy} onClick={() => pay(p.code)}>
         {busy === p.code ? t('Opening…') : price(p)}
       </Button>)}
     </div>
-    {!configured && <div className="dim small" style={{ marginTop: 9 }}>{t('Payment checkout is prepared but not connected on this staging server yet.')}</div>}
+    {!configured && <div className="dim small" style={{ marginTop: 9 }}>Платіжний провайдер ще не підключений.</div>}
   </div>
 }
 
@@ -128,7 +172,7 @@ export default function Login() {
   useEffect(() => {
     if (DEMO || inviteOpened.current || !webauthnOK() || !inviteFromLocation()) return
     inviteOpened.current = true
-    const timer = setTimeout(() => useUI.getState().openSheet(close => <RegisterSheet close={close} />), 120)
+    const timer = setTimeout(() => useUI.getState().openSheet(close => <RegisterSheet close={close} inviteMode />), 120)
     return () => clearTimeout(timer)
   }, [])
 
@@ -164,14 +208,16 @@ export default function Login() {
       {webauthnOK() ? <>
         <Button variant="primary" icon="person" onClick={signIn}>{t('Sign in with passkey')}</Button>
         <div style={{ height: 10 }} />
-        <Button icon="sparkles" onClick={() => useUI.getState().openSheet(close => <RegisterSheet close={close} />)}>{t('I have an invite')}</Button>
+        <Button icon="sparkles" onClick={() => useUI.getState().openSheet(close => <RegisterSheet close={close} />)}>Створити акаунт · 30 днів безкоштовно</Button>
+        <div style={{ height: 10 }} />
+        <Button variant="ghost" icon="key" onClick={() => useUI.getState().openSheet(close => <RegisterSheet close={close} inviteMode />)}>Маю код запрошення</Button>
         {canGuest && <div style={{ height: 10 }} />}
       </> : <div className="card small muted" style={{ textAlign: 'left' }}>{canGuest
         ? t("This browser doesn't support passkeys — you can still use VARANGYM locally on this device.")
         : t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</div>}
       {canGuest && <Button variant="ghost" className="dim" onClick={() => setGuest(true)}>{t('Continue without account')}</Button>}
       <SoloPlans />
-      <div className="dim small" style={{ marginTop: 26, lineHeight: 1.5 }}>{t('Passkeys use {0} — no passwords.', BIO)}<br />{t('Each profile keeps its own plan, workouts & body weight.')}</div>
+      <div className="dim small" style={{ marginTop: 26, lineHeight: 1.5 }}>{t('Passkeys use {0} — no passwords.', BIO)}<br />30-денний trial не списує гроші без оформленої платної підписки.</div>
     </div>
   )
 }
