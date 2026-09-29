@@ -1,4 +1,4 @@
-// Backend + WebAuthn helpers (ported from the original workout client).
+// Backend + WebAuthn helpers used by VARANGYM.
 export const IS_APPLE = /iPhone|iPad|iPod|Macintosh/.test(navigator.userAgent)
 export const IS_ANDROID = /Android/.test(navigator.userAgent)
 export const BIO = IS_APPLE ? 'Face ID / Touch ID' : IS_ANDROID ? 'fingerprint or face unlock' : 'your fingerprint, face or PIN'
@@ -72,7 +72,7 @@ function clientUser(u, memberships = []) {
   return {
     ...u,
     name: u.name || u.display_name || 'VARANGYM',
-    admin: false,
+    admin: !!(u.admin || u.is_platform_admin),
     memberships: Array.isArray(u.memberships) ? u.memberships : (Array.isArray(memberships) ? memberships : [])
   }
 }
