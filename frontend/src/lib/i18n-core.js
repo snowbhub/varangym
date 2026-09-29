@@ -49,6 +49,12 @@ const brandText = value => String(value ?? '')
   .replaceAll('OpenGym', 'VARANGYM')
   .replaceAll('opengym', 'varangym')
 
+const cleanExerciseName = value => String(value ?? '')
+  .replaceAll('§', '')
+  .replace(/\s+/g, ' ')
+  .replace(/\s+([,;:)])/g, '$1')
+  .trim()
+
 export function t(s, ...args) {
   let v = dict[s] || s
   for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', args[i])
@@ -60,24 +66,24 @@ export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
 export const exerciseNameFor = ex => {
   if (!ex) return ''
   const curated = localizedExerciseOverride(ex, lang)
-  if (curated) return curated
+  if (curated) return cleanExerciseName(curated)
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (lang === 'uk') return translated || ukExerciseName(ex.n || '')
-  if (lang === 'ru') return translated || ruExerciseName(ex.n || '')
-  if (!translated) return ex.n || ''
-  return translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
+  if (lang === 'uk') return cleanExerciseName(translated || ukExerciseName(ex.n || ''))
+  if (lang === 'ru') return cleanExerciseName(translated || ruExerciseName(ex.n || ''))
+  if (!translated) return cleanExerciseName(ex.n || '')
+  return cleanExerciseName(translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
     ? translated
-    : `${translated} (${ex.n})`
+    : `${translated} (${ex.n})`)
 }
 
 export const exerciseNameSearchText = ex => {
   if (!ex) return ''
   const curated = localizedExerciseOverride(ex, lang)
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (curated) return `${curated} ${ex.n || ''}`.trim()
-  if (lang === 'uk') return `${translated || ukExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
-  if (lang === 'ru') return `${translated || ruExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
-  return translated ? `${translated} ${ex.n}` : (ex.n || '')
+  if (curated) return `${cleanExerciseName(curated)} ${ex.n || ''}`.trim()
+  if (lang === 'uk') return `${cleanExerciseName(translated || ukExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
+  if (lang === 'ru') return `${cleanExerciseName(translated || ruExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
+  return translated ? `${cleanExerciseName(translated)} ${ex.n}` : (ex.n || '')
 }
 
 export function _setLangState(newLang, newDict, newInstr, newExerciseNames) {
