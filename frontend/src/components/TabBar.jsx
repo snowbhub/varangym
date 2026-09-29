@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, effectiveRoutines } from '../lib/history.js'
 import { todayISO } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
+import { api } from '../lib/api.js'
 import Icon from './Icon.jsx'
 
 export default function TabBar({ onStart }) {
@@ -11,6 +13,21 @@ export default function TabBar({ onStart }) {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const isGuest = useStore(s => s.isGuest())
+  const [canManage, setCanManage] = useState(false)
+
+  // Role information comes from the same authenticated VARANGYM session. We intentionally do
+  // not trust the old openGym `admin` boolean here: trainer/business memberships live in /api/me.
+  useEffect(() => {
+    let alive = true
+    if (!user || isGuest) { setCanManage(false); return () => { alive = false } }
+    api('/api/me').then(s => {
+      const memberships = s?.memberships || []
+      const role = memberships.some(m => ['trainer', 'owner', 'admin'].includes(m.role))
+      if (alive) setCanManage(!!s?.user?.is_platform_admin || role)
+    }).catch(() => { if (alive) setCanManage(false) })
+    return () => { alive = false }
+  }, [user?.id, isGuest])
+
   if (!user && !isGuest) return null
   const cur = loc.pathname.split('/')[1] || 'home'
   const on = k => cur === k || (cur === 'history' && k === 'stats') || (cur === 'settings' && k === 'home') || (cur === 'muscles' && k === 'library')
@@ -30,7 +47,7 @@ export default function TabBar({ onStart }) {
   )
 
   return (
-    <nav id="tabbar">
+    <nav id="tabbar" className={canManage ? 'has-management' : ''}>
       <Tab k="home" icon="house" to="/home" label={t('Home')} />
       <Tab k="plan" icon="calendar" to="/plan" label={t('Plan')} />
       {/* On the workout screen itself there is nothing to resume, so the button reads as the
@@ -42,6 +59,7 @@ export default function TabBar({ onStart }) {
       </button>
       <Tab k="stats" icon="chart" to="/stats" label={t('Stats')} />
       <Tab k="library" icon="list" to="/library" label={t('Exercises')} />
+      {canManage && <Tab k="management" icon="wrench" to="/management" label="Панель" />}
     </nav>
   )
 }
