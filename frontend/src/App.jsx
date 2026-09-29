@@ -12,6 +12,7 @@ import { useWakeLock } from './lib/wakelock.js'
 import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
+import { loadExerciseOverrides } from './lib/exercise-overrides.js'
 import { MOBILE } from './lib/mobile.js'
 import { startFlow } from './sheets.jsx'
 import TabBar from './components/TabBar.jsx'
@@ -34,7 +35,7 @@ import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import Settings from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
-import Management from './views/Management.jsx'
+import RoleConsole from './views/RoleConsole.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
@@ -84,6 +85,10 @@ function Shell() {
     syncPushSubscription().catch(() => {})
   }, [user?.id, ready])
   useEffect(() => {
+    if (!user || !ready) return
+    loadExerciseOverrides().catch(() => {})
+  }, [user?.id, ready])
+  useEffect(() => {
     const onScroll = () => {
       if (document.body.style.position === 'fixed') return
       scrollPositions.set(pathRef.current, window.scrollY)
@@ -107,7 +112,7 @@ function Shell() {
 
   return (
     <>
-      <div id="app" className="vfade" key={loc.pathname}>
+      <div id="app" className="vfade" key={loc.pathname + loc.search}>
         <ErrorBoundary>
           {authed && !needsMobileOnboarding && <SyncBanner />}
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
@@ -122,9 +127,9 @@ function Shell() {
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
               <Route path="/settings" element={<Settings />} />
-              <Route path="/trainer" element={<Management mode="trainer" />} />
-              <Route path="/business" element={<Management mode="business" />} />
-              <Route path="/admin" element={<Management mode="admin" />} />
+              <Route path="/trainer" element={<RoleConsole mode="trainer" />} />
+              <Route path="/business" element={<RoleConsole mode="business" />} />
+              <Route path="/admin" element={<RoleConsole mode="admin" />} />
               <Route path="/admin/accounts" element={<Admin />} />
               <Route path="/coach" element={<CoachChat />} />
               <Route path="/coach/intake" element={<CoachIntake />} />
