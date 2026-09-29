@@ -1,5 +1,6 @@
-// VARANGYM role bridge. The proven workout UI remains the athlete experience; this bridge only
-// adds one branded management control for trainer / business / platform-admin accounts.
+// VARANGYM role bridge. Training and management share one browser session. For trainer/business/admin
+// accounts management opens as a same-origin full-screen layer, so the active workout application
+// stays mounted underneath instead of being destroyed and reloaded every time the user switches modes.
 (() => {
   const MANAGER_ROLES = new Set(['owner', 'admin', 'trainer']);
   let canManage = false;
@@ -48,6 +49,57 @@
     </svg>`;
   }
 
+  function ensureManagerLayer() {
+    let layer = document.getElementById('varangymManagerLayer');
+    if (layer) return layer;
+    const style = document.createElement('style');
+    style.id = 'varangymManagerLayerStyle';
+    style.textContent = `
+      #varangymManagerLayer{position:fixed;inset:0;z-index:2147483000;background:#090b0d;display:none}
+      #varangymManagerLayer.open{display:block}
+      #varangymManagerFrame{display:block;width:100%;height:100%;border:0;background:#090b0d}
+      #varangymManagerClose{position:fixed;z-index:2147483001;right:max(12px,env(safe-area-inset-right));bottom:max(18px,calc(env(safe-area-inset-bottom) + 12px));width:52px;height:52px;border-radius:50%;border:1px solid rgba(255,255,255,.16);background:rgba(20,24,28,.94);color:#fff;box-shadow:0 12px 36px rgba(0,0,0,.45);font:700 24px/1 system-ui;display:grid;place-items:center;-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+      #varangymManagerClose:active{transform:scale(.96)}
+    `;
+    document.head.appendChild(style);
+    layer = document.createElement('div');
+    layer.id = 'varangymManagerLayer';
+    layer.setAttribute('aria-hidden', 'true');
+    layer.innerHTML = `<iframe id="varangymManagerFrame" title="VARANGYM management"></iframe><button id="varangymManagerClose" type="button" aria-label="Закрити керування" title="До тренування">×</button>`;
+    document.body.appendChild(layer);
+    const frame = layer.querySelector('#varangymManagerFrame');
+    layer.querySelector('#varangymManagerClose').addEventListener('click', closeManager);
+    frame.addEventListener('load', () => {
+      // Management's legacy “Training App” link points to /. In an overlay that means “close and
+      // reveal the already-running training app”, not “nest another copy of the app in the iframe”.
+      try {
+        const path = frame.contentWindow.location.pathname;
+        if (path === '/' || path === '/index.html') closeManager();
+      } catch {}
+    });
+    return layer;
+  }
+
+  function openManager(path = '/manage/') {
+    const layer = ensureManagerLayer();
+    const frame = layer.querySelector('#varangymManagerFrame');
+    if (!frame.getAttribute('src') || frame.getAttribute('src') === 'about:blank') frame.src = path;
+    layer.classList.add('open');
+    layer.setAttribute('aria-hidden', 'false');
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeManager() {
+    const layer = document.getElementById('varangymManagerLayer');
+    if (!layer) return;
+    layer.classList.remove('open');
+    layer.setAttribute('aria-hidden', 'true');
+    document.documentElement.style.overflow = '';
+    document.body.style.overflow = '';
+    refreshRole(true);
+  }
+
   function renderButton() {
     const existing = document.getElementById('varangymManageButton');
     if (!canManage) {
@@ -73,7 +125,7 @@
     button.title = managerLabel;
     button.style.color = 'var(--acc)';
     button.innerHTML = markSvg();
-    button.addEventListener('click', () => { window.location.href = '/manage/'; });
+    button.addEventListener('click', () => openManager('/manage/'));
     anchor.parentNode.insertBefore(button, anchor);
   }
 
@@ -88,5 +140,10 @@
 
   window.addEventListener('focus', () => refreshRole(true));
   window.addEventListener('pageshow', () => refreshRole(true));
+  window.addEventListener('keydown', e => { if (e.key === 'Escape') closeManager(); });
+  window.addEventListener('message', e => {
+    if (e.origin === location.origin && e.data?.type === 'varangym:close-management') closeManager();
+  });
+  window.VARANGYM = Object.assign(window.VARANGYM || {}, { openManager, closeManager });
   refreshRole(true);
 })();
