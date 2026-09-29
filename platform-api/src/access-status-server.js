@@ -14,7 +14,7 @@ function json(res,status,body){const text=JSON.stringify(body);res.writeHead(sta
 function cookies(header=''){const out={};for(const p of String(header).split(';')){const i=p.indexOf('=');if(i<0)continue;const k=p.slice(0,i).trim();if(!k)continue;try{out[k]=decodeURIComponent(p.slice(i+1).trim())}catch{out[k]=p.slice(i+1).trim()}}return out}
 const hash=v=>crypto.createHash('sha256').update(String(v||'')).digest('hex');
 function token(req){const c=cookies(req.headers.cookie||'')[COOKIE_NAME];if(c)return c;const a=String(req.headers.authorization||'');return a.startsWith('Bearer ')?a.slice(7).trim():null}
-async function currentUser(req){const t=token(req);if(!t)return null;const {rows}=await query(`SELECT u.id,u.display_name,u.email,u.status,u.is_platform_admin FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()`,[hash(t)]);return rows[0]?.status==='active'?rows[0]:null}
+async function currentUser(req){const t=token(req);if(!t)return null;const {rows}=await query(`SELECT u.id,u.display_name,u.email,u.status,u.is_platform_admin,u.created_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>now()`,[hash(t)]);return rows[0]?.status==='active'?rows[0]:null}
 
 async function subjectAccess(subjectType,subjectId){
   const {rows}=await query(`SELECT b.plan_code,b.lifetime_access,b.extra_trainers,b.updated_at,
@@ -37,7 +37,13 @@ async function accessMe(req,res){
   const {rows:memberships}=await query(`SELECT DISTINCT w.id,w.name,w.type,m.role FROM workspace_memberships m JOIN workspaces w ON w.id=m.workspace_id WHERE m.user_id=$1 AND m.status='active' AND m.ended_at IS NULL ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'trainer' THEN 2 ELSE 3 END,w.name`,[u.id]);
   const covered=[];
   for(const m of memberships){const a=await subjectAccess('workspace',m.id);if(a)covered.push({workspaceId:m.id,workspaceName:m.name,workspaceType:m.type,role:m.role,...a});if(a?.active)return json(res,200,{active:true,source:'workspace',subjectId:m.id,workspace:{id:m.id,name:m.name,type:m.type,role:m.role},...a,user:{id:u.id,email:u.email}})}
-  return json(res,200,{active:false,source:'none',reason:'subscription_required',direct:direct||null,workspaces:covered,user:{id:u.id,email:u.email}});
+
+  // Accounts created before self-service trials existed had no billing rows at all. Keep those
+  // profiles working rather than retroactively locking them. Every new no-code registration now
+  // writes a trial/subscription row, so once its 30 days expire it reaches the paywall below.
+  if(!direct && !covered.length)return json(res,200,{active:true,source:'legacy',reason:'grandfathered',user:{id:u.id,email:u.email}});
+
+  return json(res,200,{active:false,source:'billing',reason:'subscription_required',direct:direct||null,workspaces:covered,user:{id:u.id,email:u.email}});
 }
 
 const server=http.createServer(async(req,res)=>{let url;try{url=new URL(req.url,'http://varangym.local')}catch{return json(res,400,{error:'bad request'})}try{if(req.method==='GET'&&url.pathname==='/access/me')return accessMe(req,res);if(req.method==='GET'&&url.pathname==='/health')return json(res,200,{ok:true,service:'varangym-access-status'});return json(res,404,{error:'not found'})}catch(e){console.error('[access-status]',e?.stack||e);return json(res,500,{error:'server error'})}});
