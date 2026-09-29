@@ -16,6 +16,7 @@ import { loadExerciseOverrides } from './lib/exercise-overrides.js'
 import { MOBILE } from './lib/mobile.js'
 import { startFlow } from './sheets.jsx'
 import TabBar from './components/TabBar.jsx'
+import SettingsRoleAccess from './components/SettingsRoleAccess.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
 import Toast from './components/Toast.jsx'
@@ -126,7 +127,7 @@ function Shell() {
               <Route path="/history" element={<History />} />
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
-              <Route path="/settings" element={<Settings />} />
+              <Route path="/settings" element={<><Settings />{user && <SettingsRoleAccess />}</>} />
               <Route path="/trainer" element={<RoleConsole mode="trainer" />} />
               <Route path="/business" element={<RoleConsole mode="business" />} />
               <Route path="/admin" element={<RoleConsole mode="admin" />} />
