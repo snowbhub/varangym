@@ -7,6 +7,7 @@ import { activeProfile, exAvailable } from '../lib/equipment.js'
 import { bestWeightFor } from '../lib/history.js'
 import { fmtNum } from '../lib/format.js'
 import { t, exerciseNameFor } from '../lib/i18n.js'
+import { effectiveExercise, overrideActive } from '../lib/exercise-overrides-core.js'
 import { downloadExerciseOffline, exerciseOfflineStatus, offlineMediaSupported, removeExerciseOffline } from '../lib/offline-media.js'
 import { Thumb } from '../components/Media.jsx'
 import { exerciseDetailSheet, addToRoutineSheet, customExSheet } from '../sheets.jsx'
@@ -25,7 +26,7 @@ function OfflineExerciseButton({ ex }) {
     let live = true
     exerciseOfflineStatus(ex).then(s => { if (live) setCached(!!s.cached) }).catch(() => {})
     return () => { live = false }
-  }, [ex.id])
+  }, [ex.id, ex.img, ex.gif])
 
   if (!offlineMediaSupported() || (!ex.img && !ex.gif)) return null
 
@@ -49,15 +50,23 @@ function OfflineExerciseButton({ ex }) {
     setBusy(false)
   }
 
-  return <Button
-    size="sm"
-    variant={cached ? 'tinted' : 'ghost'}
-    icon={cached ? 'checkCircle' : 'download'}
+  return <button
+    className="iconbtn"
     aria-label={cached ? t('Available offline') : t('Download for offline use')}
     title={cached ? t('Available offline') : t('Download for offline use')}
     disabled={busy}
     onClick={toggle}
-  >{cached ? t('Offline') : ''}</Button>
+    style={{
+      flex: '0 0 auto',
+      width: 38,
+      height: 38,
+      color: cached ? 'var(--acc)' : 'var(--muted)',
+      background: cached ? 'color-mix(in srgb, var(--acc) 14%, transparent)' : 'transparent',
+      opacity: busy ? .45 : 1,
+      transition: 'color .18s ease, background .18s ease, transform .18s ease',
+      transform: cached ? 'scale(1.02)' : 'scale(1)'
+    }}
+  ><Icon name={cached ? 'checkCircle' : 'download'} /></button>
 }
 
 export default function Library() {
@@ -70,7 +79,8 @@ export default function Library() {
   const [shown, setShown] = useState(40)
   const bpStrip = useRef(null), eqStrip = useRef(null)
   const profile = activeProfile(S)
-  const base = searchExercises(allExercises(S).filter(e => !bp || e.bp === bp), q)
+  const localized = allExercises(S).filter(overrideActive).map(e => effectiveExercise(e, S.lang || 'en'))
+  const base = searchExercises(localized.filter(e => !bp || e.bp === bp), q)
   const eqFiltered = (profile && !showAll) ? base.filter(e => exAvailable(S, e)) : base
   const eqOpts = equipmentOf(eqFiltered)
   const eqOn = eqOpts.includes(eq) ? eq : ''
