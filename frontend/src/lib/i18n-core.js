@@ -2,6 +2,7 @@
 // instrFor, exerciseNameFor, getLang). Plain Node-loadable — the browser-only pieces
 // (import.meta.glob lazy loads, the React subscription hook) live in i18n.js and re-export from here.
 import { ukExerciseName } from './uk-exercise-name.js'
+import { ruExerciseName } from './ru-exercise-name.js'
 
 export const LANGS = {
   en: 'English', uk: 'Українська', de: 'Deutsch', 'de-CH': 'Deutsch (Schweiz)', es: 'Español', fr: 'Français',
@@ -62,6 +63,7 @@ export const exerciseNameFor = ex => {
   if (!ex) return ''
   const translated = exerciseNames && exerciseNames[ex.id]
   if (lang === 'uk') return translated || ukExerciseName(ex.n || '')
+  if (lang === 'ru') return translated || ruExerciseName(ex.n || '')
   if (!translated) return ex.n || ''
   return translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
     ? translated
@@ -72,6 +74,7 @@ export const exerciseNameSearchText = ex => {
   if (!ex) return ''
   const translated = exerciseNames && exerciseNames[ex.id]
   if (lang === 'uk') return `${translated || ukExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
+  if (lang === 'ru') return `${translated || ruExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
   return translated ? `${translated} ${ex.n}` : (ex.n || '')
 }
 
