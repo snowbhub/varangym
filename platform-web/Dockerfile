@@ -15,13 +15,13 @@ COPY frontend/ ./
 # Remove inherited product links/names from the compiled customer UI. License and NOTICE files are
 # deliberately not touched; this only changes visible branding, backup names and update targets.
 RUN sed -i \
-  -e 's#https://gitlab.com/DuarteSantos8/opengym/-/releases#https://github.com/snowbhub/varangym/releases#g' \
-  -e 's#https://gitlab.com/DuarteSantos8/opengym#https://github.com/snowbhub/varangym#g' \
-  -e 's#https://opengym.duarte-santos.ch/#download#https://github.com/snowbhub/varangym/releases#g' \
-  -e 's#opengym.duarte-santos.ch#github.com/snowbhub/varangym/releases#g' \
-  -e 's#opengym-backup-#varangym-backup-#g' \
-  -e 's#not an openGym backup#not a VARANGYM backup#g' \
-  -e 's#openGym v{__APP_VERSION__}#VARANGYM v{__APP_VERSION__}#g' \
+  -e 's|https://gitlab.com/DuarteSantos8/opengym/-/releases|https://github.com/snowbhub/varangym/releases|g' \
+  -e 's|https://gitlab.com/DuarteSantos8/opengym|https://github.com/snowbhub/varangym|g' \
+  -e 's|https://opengym.duarte-santos.ch/#download|https://github.com/snowbhub/varangym/releases|g' \
+  -e 's|opengym.duarte-santos.ch|github.com/snowbhub/varangym/releases|g' \
+  -e 's|opengym-backup-|varangym-backup-|g' \
+  -e 's|not an openGym backup|not a VARANGYM backup|g' \
+  -e 's|openGym v{__APP_VERSION__}|VARANGYM v{__APP_VERSION__}|g' \
   src/views/Settings.jsx
 
 # Runtime exercise media is served by this VARANGYM deployment itself. The dataset is fetched once
@@ -41,13 +41,13 @@ COPY --from=exercise-media /tmp/exercises/videos/ /usr/share/nginx/html/gif/
 # Role-aware bridge: training stays in the proven workout UI while VARANGYM management is being
 # folded into the same product shell. Only trainer/admin users receive the management entry point.
 COPY platform-web/athlete-bridge.js /usr/share/nginx/html/varangym-bridge.js
-RUN sed -i 's#</body>#<script src="/varangym-bridge.js" defer></script></body>#' /usr/share/nginx/html/index.html
+RUN sed -i 's|</body>|<script src="/varangym-bridge.js" defer></script></body>|' /usr/share/nginx/html/index.html
 
 # Coach / Business / Platform Admin management surface. Client accounts are redirected to `/`.
 COPY platform-web/public /usr/share/nginx/html/manage
 # When management opens the dedicated plan editor with ?mode=coach, land straight in the trainer
 # workspace instead of briefly showing the athlete tab first.
-RUN sed -i "s#let mode = 'client';#let mode = new URLSearchParams(location.search).get('mode') === 'coach' ? 'coach' : 'client';#" /usr/share/nginx/html/manage/training.js
+RUN sed -i "s|let mode = 'client';|let mode = new URLSearchParams(location.search).get('mode') === 'coach' ? 'coach' : 'client';|" /usr/share/nginx/html/manage/training.js
 
 ENV NGINX_PORT=8080
 ENV API_BACKEND=https://platform-api-production.up.railway.app
