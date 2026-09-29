@@ -4,6 +4,7 @@ import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
 import AccountAccessSettings from './components/AccountAccessSettings.jsx'
+import { api } from './lib/api.js'
 import { ACCENTS, setWeightDecimals } from './lib/format.js'
 import { setLang, useLang } from './lib/i18n.js'
 import { setPlayOnSilent } from './lib/sound.js'
@@ -35,7 +36,7 @@ import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import Settings from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
-import ManagementMode from './views/ManagementMode.jsx'
+import ManagementMode from './views/ManagementModeV2.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
@@ -84,6 +85,12 @@ function Shell() {
   const pathRef = useRef(null)
   useEffect(() => installViewportGuard(), [])
   useEffect(() => installChipDrag(), [])
+  useEffect(() => {
+    if (!user || !ready) return
+    // Keeps last-seen/IP fresh for admin diagnostics; city/region are populated only when the
+    // trusted reverse proxy supplies geo headers, otherwise they remain intentionally empty.
+    api('/api/session-meta/touch', { method: 'POST', body: '{}' }).catch(() => {})
+  }, [user?.id, ready])
   useEffect(() => {
     if (MOBILE || !user || !ready) return
     syncPushSubscription().catch(() => {})
