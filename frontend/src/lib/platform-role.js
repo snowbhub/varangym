@@ -25,9 +25,9 @@ export function platformAccess(me) {
 
 export function defaultManagementRoute(me) {
   const access = platformAccess(me)
-  if (access.platformAdmin) return '/admin'
-  if (access.business) return '/business'
-  if (access.trainer) return '/trainer'
+  if (access.platformAdmin) return '/admin/dashboard'
+  if (access.business) return '/business/dashboard'
+  if (access.trainer) return '/trainer/dashboard'
   return null
 }
 
