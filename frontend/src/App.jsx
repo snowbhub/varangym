@@ -39,12 +39,10 @@ import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
 
-// last known scrollY per route, so back-navigation can put the page where it was
 const scrollPositions = new Map()
 
-bindUI(useUI)   // lets the shared controls open sheets without importing the store at module scope
+bindUI(useUI)
 
-// theme === 'system' follows the OS/browser preference instead of a fixed choice.
 const resolveTheme = theme => theme === 'light' || theme === 'dark'
   ? theme
   : (window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
@@ -62,17 +60,12 @@ function Shell() {
   const loc = useLocation()
   const navType = useNavigationType()
   const { S, user, ready } = useStore()
-  // iOS: whether timer sounds get past the ring/silent switch (Settings → Sounds). Page-level,
-  // so it is applied here on load and on change rather than at each beep.
   useEffect(() => { setPlayOnSilent(!!S.soundOnSilent) }, [S.soundOnSilent])
   const isGuest = useStore(s => s.isGuest())
   const needsMobileOnboarding = useStore(s => s.needsMobileOnboarding)
-  const langV = useLang()   // re-renders the whole shell when the language (pack) changes
+  const langV = useLang()
   useEffect(() => { setNav(navigate) }, [navigate])
   useEffect(() => { applyPrefs(S.theme, S.accent) }, [S.theme, S.accent])
-  // 'system' needs to react live if the OS theme flips while the app is open, not just on
-  // the next mount — a fixed 'dark'/'light' choice never re-fires this since matchMedia
-  // isn't consulted for those.
   useEffect(() => {
     if (S.theme !== 'system' || !window.matchMedia) return
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
@@ -81,28 +74,17 @@ function Shell() {
     return () => mql.removeEventListener('change', onChange)
   }, [S.theme, S.accent])
   useEffect(() => { setLang(S.lang || 'en') }, [S.lang])
-  // Same shape as the language: a module-level display setting, pushed when it changes (#139).
   useEffect(() => { setWeightDecimals(S.wdec) }, [S.wdec])
   useEffect(() => { document.documentElement.lang = S.lang || 'en' }, [langV, S.lang])
-  // Forward navigation starts at the top; going back lands where you left off.
-  // The position is recorded from scroll events rather than read at route
-  // change, because by then a shorter page may already have clamped it.
   const pathRef = useRef(null)
-  // iOS leaves the page displaced after the keyboard goes away (see lib/viewport-guard.js).
   useEffect(() => installViewportGuard(), [])
-  // Click-drag a horizontal chip strip to scroll it sideways (lib/hchips.js) — on a desktop
-  // browser there's otherwise no way to reach the filters past the edge.
   useEffect(() => installChipDrag(), [])
-  // Once per signed-in boot, hand the server this browser's push subscription again (see
-  // lib/push.js): a subscription the instance lost is back before the next reminder is due,
-  // with nobody having to visit Settings. Web only — the APK has no service worker.
   useEffect(() => {
     if (MOBILE || !user || !ready) return
     syncPushSubscription().catch(() => {})
   }, [user?.id, ready])
   useEffect(() => {
     const onScroll = () => {
-      // Modals pins the body while a sheet is open; scrollY is 0 then, not a position.
       if (document.body.style.position === 'fixed') return
       scrollPositions.set(pathRef.current, window.scrollY)
     }
@@ -113,38 +95,24 @@ function Shell() {
     const samePath = pathRef.current === loc.pathname
     pathRef.current = loc.pathname
     if (navType !== 'POP') { window.scrollTo(0, 0); return }
-    // A POP that stays on the route we are on is not a back-navigation: it is the history
-    // entry a sheet pushed (Modals.jsx, #63) being unwound as the sheet closes. Nothing new
-    // mounted, Modals puts the page back where it was itself, and a view that scrolled on
-    // purpose because the sheet closed — the workout list going to the current exercise after
-    // ⋯ → Layout → List (#224) — must not be dragged back to a position recorded before that
-    // scroll's event had even been dispatched.
     if (samePath) return
     const y = scrollPositions.get(loc.pathname) || 0
-    // the restored view needs a layout pass before it is tall enough to scroll to y
     const frame = window.requestAnimationFrame(() => window.scrollTo(0, y))
     return () => window.cancelAnimationFrame(frame)
   }, [loc.pathname, navType])
-  // bound to the workout, not to the route — checking Stats mid-session keeps the screen on
   useWakeLock(!!S.active && S.keepAwake !== false)
 
   const authed = user || isGuest
-  // Boot quietly. A role bridge/logo appearing and disappearing here makes the product feel like
-  // multiple sites stitched together; the shell itself owns the first paint now.
   if (!ready && !authed) return <div id="app" />
 
   return (
     <>
-      {/* keyed on the route: a view that throws is contained, and switching tabs
-          re-mounts the boundary, so the tab bar is always a way out */}
       <div id="app" className="vfade" key={loc.pathname}>
         <ErrorBoundary>
           {authed && !needsMobileOnboarding && <SyncBanner />}
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
             <Routes>
               <Route path="/home" element={<Home />} />
-              {/* Gym check-in — switched off in Settings, the route falls through to the
-                  catch-all redirect below. */}
               {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
@@ -154,14 +122,10 @@ function Shell() {
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
               <Route path="/settings" element={<Settings />} />
-              {/* Management is part of this same React application and shares the existing
-                  Passkey session. The views gate themselves with /api/me memberships. */}
               <Route path="/trainer" element={<Management mode="trainer" />} />
               <Route path="/business" element={<Management mode="business" />} />
-              <Route path="/admin" element={user?.admin ? <Admin /> : <Management mode="admin" />} />
-              {/* The Coach screens gate themselves on the instance config; the routes exist
-                  unconditionally so a deep link from a notification lands somewhere sane
-                  rather than on the catch-all. */}
+              <Route path="/admin" element={<Management mode="admin" />} />
+              <Route path="/admin/accounts" element={<Admin />} />
               <Route path="/coach" element={<CoachChat />} />
               <Route path="/coach/intake" element={<CoachIntake />} />
               <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
@@ -171,7 +135,6 @@ function Shell() {
           )}
         </ErrorBoundary>
       </div>
-      {/* The chat owns the bottom of the screen: its composer sits where the tabs would be. */}
       {loc.pathname !== '/coach' && <TabBar onStart={startFlow} />}
       <RestTimer />
       <Modals />
@@ -184,7 +147,6 @@ function Shell() {
 export default function App() {
   const boot = useStore(s => s.boot)
   useEffect(() => { boot() }, [boot])
-  // Android system back — sheet, then page, then press-again-to-exit (see lib/back.js)
   useEffect(() => {
     let stop = null, gone = false
     initBackButton().then(fn => { if (gone) fn(); else stop = fn })

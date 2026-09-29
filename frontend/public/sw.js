@@ -37,8 +37,8 @@ self.addEventListener('push', e => {
     try { for (const n of await self.registration.getNotifications({ tag })) n.close() } catch {}
     await self.registration.showNotification(data.title || 'VARANGYM', {
       body: data.body || '',
-      icon: 'icon-512.png',
-      badge: 'icon-180.png',
+      icon: 'varangym-180.png',
+      badge: 'varangym-180.png',
       tag,
       renotify: true
     })
@@ -55,7 +55,7 @@ self.addEventListener('notificationclick', e => {
 
 self.addEventListener('pushsubscriptionchange', e => {
   e.waitUntil((async () => {
-    const old = e.oldSubscription || (await self.registration.pushManager.getSubscription())
+    const old = e.oldSubscription || (await self.registration.getSubscription())
     const key = e.newSubscription?.options?.applicationServerKey || old?.options?.applicationServerKey
     if (!key) return
     const sub = e.newSubscription || await self.registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key })
@@ -79,7 +79,6 @@ self.addEventListener('fetch', e => {
         if (res.ok) await media.put(e.request, res.clone())
         return res
       } catch {
-        // A previous build may have viewed this file before persistent media caching existed.
         const runtimeHit = await caches.match(e.request, { ignoreSearch: true })
         if (runtimeHit) return runtimeHit
         throw new Error('offline media unavailable')

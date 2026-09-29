@@ -12,21 +12,20 @@ RUN npm ci --ignore-scripts
 COPY api/coach/core/ /app/api/coach/core/
 COPY frontend/ ./
 
-# Remove inherited product links/names from the compiled customer UI. License and NOTICE files are
-# deliberately not touched; this only changes visible branding, backup names and update targets.
-RUN sed -i \
+# Product branding is applied to every customer-facing source module before compilation. Internal
+# storage/schema compatibility is left untouched; only names, public links and exported filenames
+# shown to a user are changed.
+RUN find src -type f \( -name '*.js' -o -name '*.jsx' \) -print0 | xargs -0 sed -i \
   -e 's|https://gitlab.com/DuarteSantos8/opengym/-/releases|https://github.com/snowbhub/varangym/releases|g' \
   -e 's|https://gitlab.com/DuarteSantos8/opengym|https://github.com/snowbhub/varangym|g' \
   -e 's|https://opengym.duarte-santos.ch/#download|https://github.com/snowbhub/varangym/releases|g' \
   -e 's|opengym.duarte-santos.ch|github.com/snowbhub/varangym/releases|g' \
   -e 's|opengym-backup-|varangym-backup-|g' \
-  -e 's|not an openGym backup|not a VARANGYM backup|g' \
-  -e 's|openGym v{__APP_VERSION__}|VARANGYM v{__APP_VERSION__}|g' \
-  src/views/Settings.jsx
+  -e 's|openGym|VARANGYM|g'
 
 # Runtime exercise media is served by this VARANGYM deployment itself. The dataset is fetched once
-# while the Docker image is built, then copied into nginx below; clients never depend on the old
-# Kiril/openGym Railway service just to render an exercise.
+# while the Docker image is built, then copied into nginx below; clients never depend on another
+# Railway service just to render an exercise.
 ENV VITE_IMG_BASE=/img/
 ENV VITE_GIF_BASE=/gif/
 RUN npm run build
