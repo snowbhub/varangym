@@ -1,8 +1,6 @@
-// Runtime-agnostic core of the i18n module: state, constants and readers (t, dateLocale,
-// instrFor, exerciseNameFor, getLang). Plain Node-loadable — the browser-only pieces
-// (import.meta.glob lazy loads, the React subscription hook) live in i18n.js and re-export from here.
 import { ukExerciseName } from './uk-exercise-name.js'
 import { ruExerciseName } from './ru-exercise-name.js'
+import { localizedExerciseOverride } from './exercise-overrides-core.js'
 
 export const LANGS = {
   en: 'English', uk: 'Українська', de: 'Deutsch', 'de-CH': 'Deutsch (Schweiz)', es: 'Español', fr: 'Français',
@@ -61,6 +59,8 @@ export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
 
 export const exerciseNameFor = ex => {
   if (!ex) return ''
+  const curated = localizedExerciseOverride(ex, lang)
+  if (curated) return curated
   const translated = exerciseNames && exerciseNames[ex.id]
   if (lang === 'uk') return translated || ukExerciseName(ex.n || '')
   if (lang === 'ru') return translated || ruExerciseName(ex.n || '')
@@ -72,7 +72,9 @@ export const exerciseNameFor = ex => {
 
 export const exerciseNameSearchText = ex => {
   if (!ex) return ''
+  const curated = localizedExerciseOverride(ex, lang)
   const translated = exerciseNames && exerciseNames[ex.id]
+  if (curated) return `${curated} ${ex.n || ''}`.trim()
   if (lang === 'uk') return `${translated || ukExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
   if (lang === 'ru') return `${translated || ruExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
   return translated ? `${translated} ${ex.n}` : (ex.n || '')
