@@ -38,17 +38,8 @@ COPY --from=build /app/frontend/dist /usr/share/nginx/html
 COPY --from=exercise-media /tmp/exercises/images/ /usr/share/nginx/html/img/
 COPY --from=exercise-media /tmp/exercises/videos/ /usr/share/nginx/html/gif/
 
-# Role-aware bridge: training stays in the proven workout UI while VARANGYM management is being
-# folded into the same product shell. Only trainer/admin users receive the management entry point.
-COPY platform-web/athlete-bridge.js /usr/share/nginx/html/varangym-bridge.js
-RUN sed -i 's|</body>|<script src="/varangym-bridge.js" defer></script></body>|' /usr/share/nginx/html/index.html
-
-# Coach / Business / Platform Admin management surface. Client accounts are redirected to `/`.
-COPY platform-web/public /usr/share/nginx/html/manage
-# When management opens the dedicated plan editor with ?mode=coach, land straight in the trainer
-# workspace instead of briefly showing the athlete tab first.
-RUN sed -i "s|let mode = 'client';|let mode = new URLSearchParams(location.search).get('mode') === 'coach' ? 'coach' : 'client';|" /usr/share/nginx/html/manage/training.js
-
+# There is deliberately no /manage bundle and no DOM-injected bridge. Trainer, business and
+# platform-admin screens are routes inside the React app built above and reuse the same session.
 ENV NGINX_PORT=8080
 ENV API_BACKEND=https://platform-api-production.up.railway.app
 ENV API_HOST=platform-api-production.up.railway.app
