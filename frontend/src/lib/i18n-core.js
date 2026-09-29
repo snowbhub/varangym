@@ -3,6 +3,7 @@
 // (import.meta.glob lazy loads, the React subscription hook) live in i18n.js and re-export from here.
 import { ukExerciseName } from './uk-exercise-name.js'
 import { ruExerciseName } from './ru-exercise-name.js'
+import { commonExerciseName } from './common-exercise-name.js'
 
 export const LANGS = {
   en: 'English', uk: 'Українська', de: 'Deutsch', 'de-CH': 'Deutsch (Schweiz)', es: 'Español', fr: 'Français',
@@ -51,6 +52,8 @@ const brandText = value => String(value ?? '')
   .replaceAll('OpenGym', 'VARANGYM')
   .replaceAll('opengym', 'varangym')
 
+const cleanExerciseName = value => String(value || '').replaceAll('§', '').replace(/\s+/g, ' ').trim()
+
 export function t(s, ...args) {
   let v = dict[s] || s
   for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', args[i])
@@ -61,10 +64,12 @@ export const instrFor = ex => ex?.localizedInstructions || (instr && instr[ex.id
 
 export const exerciseNameFor = ex => {
   if (!ex) return ''
-  if (ex.localizedName) return ex.localizedName
+  if (ex.localizedName) return cleanExerciseName(ex.localizedName)
+  const common = commonExerciseName(ex.n || '', lang)
+  if (common) return common
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (lang === 'uk') return translated || ukExerciseName(ex.n || '')
-  if (lang === 'ru') return translated || ruExerciseName(ex.n || '')
+  if (lang === 'uk') return cleanExerciseName(translated || ukExerciseName(ex.n || ''))
+  if (lang === 'ru') return cleanExerciseName(translated || ruExerciseName(ex.n || ''))
   if (!translated) return ex.n || ''
   return translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
     ? translated
@@ -73,11 +78,13 @@ export const exerciseNameFor = ex => {
 
 export const exerciseNameSearchText = ex => {
   if (!ex) return ''
-  const curated = ex.localizedName ? `${ex.localizedName} ${ex.n || ''}`.trim() : ''
+  const curated = ex.localizedName ? `${cleanExerciseName(ex.localizedName)} ${ex.n || ''}`.trim() : ''
   if (curated) return curated
+  const common = commonExerciseName(ex.n || '', lang)
+  if (common) return `${common} ${ex.n || ''}`.trim()
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (lang === 'uk') return `${translated || ukExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
-  if (lang === 'ru') return `${translated || ruExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
+  if (lang === 'uk') return `${cleanExerciseName(translated || ukExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
+  if (lang === 'ru') return `${cleanExerciseName(translated || ruExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
   return translated ? `${translated} ${ex.n}` : (ex.n || '')
 }
 
