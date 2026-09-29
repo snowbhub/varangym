@@ -1,3 +1,7 @@
+FROM alpine:3.20 AS exercise-media
+RUN apk add --no-cache git
+RUN git clone --depth 1 https://github.com/hasaneyldrm/exercises-dataset /tmp/exercises
+
 FROM --platform=$BUILDPLATFORM node:22-alpine AS build
 
 WORKDIR /app/frontend
@@ -8,28 +12,22 @@ RUN npm ci --ignore-scripts
 COPY api/coach/core/ /app/api/coach/core/
 COPY frontend/ ./
 
-# Remove the last user-facing legacy product references that remain in the inherited Settings
-# source without touching LICENSE/NOTICE or source attribution files required by the upstream
-# license. This only changes product UI / backup names / release links in the compiled build.
-RUN sed -i \
-  -e 's#https://gitlab.com/DuarteSantos8/opengym/-/releases#https://github.com/snowbhub/varangym/releases#g' \
-  -e 's#opengym-backup-#varangym-backup-#g' \
-  -e 's#not an openGym backup#not a VARANGYM backup#g' \
-  src/views/Settings.jsx
-
-# Staging currently reuses the existing exercise-media host while the app itself and all account
-# data run from VARANGYM. Media can be explicitly cached per exercise for offline use by the PWA.
-ENV VITE_IMG_BASE=https://kiril-coach-production.up.railway.app/img/
-ENV VITE_GIF_BASE=https://kiril-coach-production.up.railway.app/gif/
+# Runtime exercise media is served by this VARANGYM deployment itself. The dataset is fetched once
+# while the Docker image is built, then copied into nginx below; clients never depend on the old
+# Kiril/openGym Railway service just to render an exercise.
+ENV VITE_IMG_BASE=/img/
+ENV VITE_GIF_BASE=/gif/
 RUN npm run build
 
 FROM nginx:1.27-alpine
 
 COPY platform-web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
+COPY --from=exercise-media /tmp/exercises/images/ /usr/share/nginx/html/img/
+COPY --from=exercise-media /tmp/exercises/videos/ /usr/share/nginx/html/gif/
 
-# Role-aware bridge: training stays in the original proven workout UI; only trainer/admin users
-# receive a management entry point.
+# Role-aware bridge: training stays in the proven workout UI while VARANGYM management is being
+# folded into the same product shell. Only trainer/admin users receive the management entry point.
 COPY platform-web/athlete-bridge.js /usr/share/nginx/html/varangym-bridge.js
 RUN sed -i 's#</body>#<script src="/varangym-bridge.js" defer></script></body>#' /usr/share/nginx/html/index.html
 
