@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, effectiveRoutines } from '../lib/history.js'
 import { todayISO } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
-import { defaultManagementRoute, loadPlatformIdentity } from '../lib/platform-role.js'
+import { roleRoute, viewOf } from '../lib/role-mode.js'
 import Icon from './Icon.jsx'
 
 export default function TabBar({ onStart }) {
@@ -13,25 +12,34 @@ export default function TabBar({ onStart }) {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const isGuest = useStore(s => s.isGuest())
-  const [panelTo, setPanelTo] = useState(null)
-
-  useEffect(() => {
-    let live = true
-    if (!user) { setPanelTo(null); return () => { live = false } }
-    loadPlatformIdentity()
-      .then(me => { if (live) setPanelTo(defaultManagementRoute(me)) })
-      .catch(() => { if (live) setPanelTo(null) })
-    return () => { live = false }
-  }, [user?.id])
 
   if (!user && !isGuest) return null
   const cur = loc.pathname.split('/')[1] || 'home'
-  const on = k => cur === k || (cur === 'history' && k === 'stats') || (cur === 'settings' && k === 'home') || (cur === 'muscles' && k === 'library') || (k === 'panel' && ['trainer', 'business', 'admin'].includes(cur))
+  const roleMode = ['trainer','business','admin'].includes(cur) ? cur : null
+  const roleView = viewOf(loc.search)
+
+  if (roleMode) {
+    const RoleTab = ({ view, icon, label }) => (
+      <button className={roleView === view ? 'on' : ''} onClick={() => nav(roleRoute(roleMode, view))}>
+        <Icon name={icon} /><span>{label}</span>
+      </button>
+    )
+    return <nav id="tabbar">
+      <RoleTab view="home" icon="house" label="Головна" />
+      <RoleTab view="people" icon="personCircle" label={roleMode === 'business' ? 'Люди' : 'Клієнти'} />
+      <button className={'start' + (roleView === 'dashboard' ? ' on' : '')} onClick={() => nav(roleRoute(roleMode, 'dashboard'))}>
+        <span className="cir"><Icon name="chart" /></span>
+        <span>Дашборд</span>
+      </button>
+      <RoleTab view="stats" icon="chartLine" label="Статистика" />
+      <RoleTab view="exercises" icon="list" label="Вправи" />
+    </nav>
+  }
+
+  const on = k => cur === k || (cur === 'history' && k === 'stats') || (cur === 'settings' && k === 'home') || (cur === 'muscles' && k === 'library')
 
   const startWorkout = () => {
     if (!S.active) {
-      // A weekday can hold several routines; start the combined session if any of them has
-      // exercises, otherwise fall through to the picker.
       if (effectiveRoutines(S, todayISO()).some(r => r.ex.length)) { onStart(effectiveRoutineIds(S, todayISO())); return }
     }
     nav('/workout')
@@ -46,15 +54,12 @@ export default function TabBar({ onStart }) {
     <nav id="tabbar">
       <Tab k="home" icon="house" to="/home" label={t('Home')} />
       <Tab k="plan" icon="calendar" to="/plan" label={t('Plan')} />
-      {/* On the workout screen itself there is nothing to resume, so the button reads as the
-          tab it is and stays lit (#29); anywhere else it brings you back to the exercise you
-          were on — the marker is kept in S.active.cur and never moves on its own (#21). */}
       <button className={'start' + (S.active ? ' rec' : '') + (S.active && cur === 'workout' ? ' on' : '')} onClick={startWorkout}>
         <span className="cir"><Icon name={S.active ? (cur === 'workout' ? 'dumbbell' : 'play') : 'dumbbell'} /></span>
         <span>{S.active ? (cur === 'workout' ? t('Workout') : t('Resume')) : t('Start')}</span>
       </button>
       <Tab k="stats" icon="chart" to="/stats" label={t('Stats')} />
-      {panelTo ? <Tab k="panel" icon="wrench" to={panelTo} label="Panel" /> : <Tab k="library" icon="list" to="/library" label={t('Exercises')} />}
+      <Tab k="library" icon="list" to="/library" label={t('Exercises')} />
     </nav>
   )
 }

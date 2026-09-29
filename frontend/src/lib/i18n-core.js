@@ -1,8 +1,6 @@
-// Runtime-agnostic core of the i18n module: state, constants and readers (t, dateLocale,
-// instrFor, exerciseNameFor, getLang). Plain Node-loadable — the browser-only pieces
-// (import.meta.glob lazy loads, the React subscription hook) live in i18n.js and re-export from here.
 import { ukExerciseName } from './uk-exercise-name.js'
 import { ruExerciseName } from './ru-exercise-name.js'
+import { localizedExerciseOverride } from './exercise-overrides-core.js'
 
 export const LANGS = {
   en: 'English', uk: 'Українська', de: 'Deutsch', 'de-CH': 'Deutsch (Schweiz)', es: 'Español', fr: 'Français',
@@ -51,6 +49,12 @@ const brandText = value => String(value ?? '')
   .replaceAll('OpenGym', 'VARANGYM')
   .replaceAll('opengym', 'varangym')
 
+const cleanExerciseName = value => String(value ?? '')
+  .replaceAll('§', '')
+  .replace(/\s+/g, ' ')
+  .replace(/\s+([,;:)])/g, '$1')
+  .trim()
+
 export function t(s, ...args) {
   let v = dict[s] || s
   for (let i = 0; i < args.length; i++) v = v.replaceAll('{' + i + '}', args[i])
@@ -61,21 +65,25 @@ export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
 
 export const exerciseNameFor = ex => {
   if (!ex) return ''
+  const curated = localizedExerciseOverride(ex, lang)
+  if (curated) return cleanExerciseName(curated)
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (lang === 'uk') return translated || ukExerciseName(ex.n || '')
-  if (lang === 'ru') return translated || ruExerciseName(ex.n || '')
-  if (!translated) return ex.n || ''
-  return translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
+  if (lang === 'uk') return cleanExerciseName(translated || ukExerciseName(ex.n || ''))
+  if (lang === 'ru') return cleanExerciseName(translated || ruExerciseName(ex.n || ''))
+  if (!translated) return cleanExerciseName(ex.n || '')
+  return cleanExerciseName(translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
     ? translated
-    : `${translated} (${ex.n})`
+    : `${translated} (${ex.n})`)
 }
 
 export const exerciseNameSearchText = ex => {
   if (!ex) return ''
+  const curated = localizedExerciseOverride(ex, lang)
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (lang === 'uk') return `${translated || ukExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
-  if (lang === 'ru') return `${translated || ruExerciseName(ex.n || '')} ${ex.n || ''}`.trim()
-  return translated ? `${translated} ${ex.n}` : (ex.n || '')
+  if (curated) return `${cleanExerciseName(curated)} ${ex.n || ''}`.trim()
+  if (lang === 'uk') return `${cleanExerciseName(translated || ukExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
+  if (lang === 'ru') return `${cleanExerciseName(translated || ruExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
+  return translated ? `${cleanExerciseName(translated)} ${ex.n}` : (ex.n || '')
 }
 
 export function _setLangState(newLang, newDict, newInstr, newExerciseNames) {
