@@ -4,6 +4,7 @@ import { useStore } from './store/useStore.js'
 import { useUI } from './store/useUI.js'
 import { bindUI } from './components/ui.jsx'
 import AccountAccessSettings from './components/AccountAccessSettings.jsx'
+import SubscriptionGate from './components/SubscriptionGate.jsx'
 import { api } from './lib/api.js'
 import { ACCENTS, setWeightDecimals } from './lib/format.js'
 import { setLang, useLang } from './lib/i18n.js'
@@ -61,6 +62,30 @@ function SettingsWithAccess() {
   return <><Settings /><AccountAccessSettings /></>
 }
 
+function AppRoutes({ checkIn }) {
+  return <Routes>
+    <Route path="/home" element={<Home />} />
+    {checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
+    <Route path="/plan" element={<Plan />} />
+    <Route path="/plan/r/:id" element={<RoutineEdit />} />
+    <Route path="/workout" element={<Workout />} />
+    <Route path="/stats" element={<Stats />} />
+    <Route path="/history" element={<History />} />
+    <Route path="/library" element={<Library />} />
+    <Route path="/muscles" element={<Muscles />} />
+    <Route path="/settings" element={<SettingsWithAccess />} />
+    <Route path="/admin/accounts" element={<Admin />} />
+    <Route path="/trainer/*" element={<ManagementMode />} />
+    <Route path="/business/*" element={<ManagementMode />} />
+    <Route path="/admin/*" element={<ManagementMode />} />
+    <Route path="/coach" element={<CoachChat />} />
+    <Route path="/coach/intake" element={<CoachIntake />} />
+    <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
+    <Route path="/coach/setup" element={<CoachSetup />} />
+    <Route path="*" element={<Navigate to="/home" replace />} />
+  </Routes>
+}
+
 function Shell() {
   const navigate = useNavigate()
   const loc = useLocation()
@@ -87,8 +112,6 @@ function Shell() {
   useEffect(() => installChipDrag(), [])
   useEffect(() => {
     if (!user || !ready) return
-    // Keeps last-seen/IP fresh for admin diagnostics; city/region are populated only when the
-    // trusted reverse proxy supplies geo headers, otherwise they remain intentionally empty.
     api('/api/session-meta/touch', { method: 'POST', body: '{}' }).catch(() => {})
   }, [user?.id, ready])
   useEffect(() => {
@@ -123,27 +146,9 @@ function Shell() {
         <ErrorBoundary>
           {authed && !needsMobileOnboarding && <SyncBanner />}
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
-            <Routes>
-              <Route path="/home" element={<Home />} />
-              {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
-              <Route path="/plan" element={<Plan />} />
-              <Route path="/plan/r/:id" element={<RoutineEdit />} />
-              <Route path="/workout" element={<Workout />} />
-              <Route path="/stats" element={<Stats />} />
-              <Route path="/history" element={<History />} />
-              <Route path="/library" element={<Library />} />
-              <Route path="/muscles" element={<Muscles />} />
-              <Route path="/settings" element={<SettingsWithAccess />} />
-              <Route path="/admin/accounts" element={<Admin />} />
-              <Route path="/trainer/*" element={<ManagementMode />} />
-              <Route path="/business/*" element={<ManagementMode />} />
-              <Route path="/admin/*" element={<ManagementMode />} />
-              <Route path="/coach" element={<CoachChat />} />
-              <Route path="/coach/intake" element={<CoachIntake />} />
-              <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
-              <Route path="/coach/setup" element={<CoachSetup />} />
-              <Route path="*" element={<Navigate to="/home" replace />} />
-            </Routes>
+            user
+              ? <SubscriptionGate><AppRoutes checkIn={S.checkIn} /></SubscriptionGate>
+              : <AppRoutes checkIn={S.checkIn} />
           )}
         </ErrorBoundary>
       </div>
