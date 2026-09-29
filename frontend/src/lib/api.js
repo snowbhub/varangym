@@ -67,13 +67,22 @@ function credToJSON(cred) {
   return out
 }
 
-function clientUser(u, memberships = []) {
+// One normalized account shape is used by the workout UI and the VARANGYM role panels.
+// Older openGym screens still read `admin`, while the SaaS layer uses
+// `is_platform_admin` + memberships. Never throw either piece of information away.
+export function platformUser(u, memberships = []) {
   if (!u) return u
+  const resolvedMemberships = Array.isArray(u.memberships)
+    ? u.memberships
+    : (Array.isArray(memberships) ? memberships : [])
+  const platformAdmin = !!(u.is_platform_admin || u.admin)
   return {
     ...u,
     name: u.name || u.display_name || 'VARANGYM',
-    admin: false,
-    memberships: Array.isArray(u.memberships) ? u.memberships : (Array.isArray(memberships) ? memberships : [])
+    display_name: u.display_name || u.name || 'VARANGYM',
+    admin: platformAdmin,
+    is_platform_admin: platformAdmin,
+    memberships: resolvedMemberships
   }
 }
 
@@ -85,7 +94,7 @@ export async function passkeyRegister(name, code, locale = 'uk', email = null) {
   const res = await api('/api/auth/register/verify', {
     method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred), locale })
   })
-  return clientUser(res.user, res.memberships)
+  return platformUser(res.user, res.memberships)
 }
 
 export async function passkeyLogin() {
@@ -94,5 +103,5 @@ export async function passkeyLogin() {
   const res = await api('/api/auth/login/verify', {
     method: 'POST', body: JSON.stringify({ cid, credential: credToJSON(cred) })
   })
-  return clientUser(res.user, res.memberships)
+  return platformUser(res.user, res.memberships)
 }
