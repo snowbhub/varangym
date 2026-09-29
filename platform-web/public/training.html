@@ -4,32 +4,32 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="theme-color" content="#101114" />
-  <title>varangym training</title>
-  <link rel="stylesheet" href="/styles.css" />
-  <link rel="stylesheet" href="/training.css" />
+  <title>VARANGYM · Плани</title>
+  <link rel="stylesheet" href="/manage/styles.css" />
+  <link rel="stylesheet" href="/manage/training.css" />
 </head>
 <body>
   <header class="topbar">
     <div>
-      <a class="brand brand-link" href="/">VARANGYM</a>
-      <div class="subbrand">training · coach</div>
+      <a class="brand brand-link" href="/manage/">VARANGYM</a>
+      <div class="subbrand">plans · training · coach</div>
     </div>
-    <a class="ghost nav-link" href="/">Панель</a>
+    <a class="ghost nav-link" href="/manage/">Панель</a>
   </header>
 
   <main class="shell">
     <section id="loading" class="card"><h2>Завантаження…</h2></section>
     <section id="signedOut" class="card hidden">
       <h2>Потрібен вхід</h2>
-      <p class="muted">Увійди або зареєструйся в основній панелі varangym.</p>
-      <a class="primary button-link" href="/">До входу</a>
+      <p class="muted">Увійди або зареєструйся у VARANGYM.</p>
+      <a class="primary button-link" href="/manage/">До входу</a>
     </section>
 
     <section id="trainingApp" class="hidden">
       <div class="dashboard-head">
         <div>
-          <div class="eyebrow">varangym training</div>
-          <h1 id="trainingHello">Тренування</h1>
+          <div class="eyebrow">VARANGYM PLANS</div>
+          <h1 id="trainingHello">Плани й тренування</h1>
           <p id="trainingIdentity" class="muted"></p>
         </div>
       </div>
@@ -38,6 +38,6 @@
     </section>
     <div id="trainingToast" class="toast hidden"></div>
   </main>
-  <script type="module" src="/training.js"></script>
+  <script type="module" src="/manage/training.js"></script>
 </body>
 </html>
