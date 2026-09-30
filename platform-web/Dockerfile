@@ -32,6 +32,11 @@ RUN npm run build
 
 FROM nginx:1.27-alpine
 
+# Railway exposes many virtual CPUs to the container. nginx's default `worker_processes auto`
+# previously spawned dozens of workers and some failed io_setup() with EAGAIN. Four workers are
+# more than enough for this static/proxy frontend and keep the process footprint predictable.
+RUN sed -i -E 's/^worker_processes[[:space:]]+auto;/worker_processes 4;/' /etc/nginx/nginx.conf
+
 COPY platform-web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/frontend/dist /usr/share/nginx/html
 COPY --from=exercise-media /tmp/exercises/images/ /usr/share/nginx/html/img/
