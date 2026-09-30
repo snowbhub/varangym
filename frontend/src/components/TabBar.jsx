@@ -19,6 +19,11 @@ export default function TabBar({ onStart }) {
   const roleView = viewOf(loc.search)
 
   if (roleMode) {
+    const copy = roleMode === 'admin'
+      ? { people: 'Акаунти', dashboard: 'Фінанси', dashboardIcon: 'creditCard' }
+      : roleMode === 'business'
+        ? { people: 'Команда', dashboard: 'Плани', dashboardIcon: 'calendar' }
+        : { people: 'Клієнти', dashboard: 'Програми', dashboardIcon: 'calendar' }
     const RoleTab = ({ view, icon, label }) => (
       <button className={roleView === view ? 'on' : ''} onClick={() => nav(roleRoute(roleMode, view))}>
         <Icon name={icon} /><span>{label}</span>
@@ -26,10 +31,10 @@ export default function TabBar({ onStart }) {
     )
     return <nav id="tabbar">
       <RoleTab view="home" icon="house" label="Головна" />
-      <RoleTab view="people" icon="personCircle" label={roleMode === 'business' ? 'Люди' : 'Клієнти'} />
+      <RoleTab view="people" icon="personCircle" label={copy.people} />
       <button className={'start' + (roleView === 'dashboard' ? ' on' : '')} onClick={() => nav(roleRoute(roleMode, 'dashboard'))}>
-        <span className="cir"><Icon name="chart" /></span>
-        <span>Дашборд</span>
+        <span className="cir"><Icon name={copy.dashboardIcon} /></span>
+        <span>{copy.dashboard}</span>
       </button>
       <RoleTab view="stats" icon="chartLine" label="Статистика" />
       <RoleTab view="exercises" icon="list" label="Вправи" />
