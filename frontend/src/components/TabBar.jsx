@@ -31,7 +31,7 @@ export default function TabBar({ onStart }) {
 
   if (roleMode) {
     const copy = roleMode === 'admin'
-      ? { people: 'Акаунти', dashboard: 'Фінанси', dashboardIcon: 'creditCard' }
+      ? { people: 'Акаунти', dashboard: 'Фінанси', dashboardIcon: 'chart' }
       : roleMode === 'business'
         ? { people: 'Команда', dashboard: 'Плани', dashboardIcon: 'calendar' }
         : { people: 'Клієнти', dashboard: 'Програми', dashboardIcon: 'calendar' }
