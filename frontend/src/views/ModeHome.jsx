@@ -59,9 +59,9 @@ export function RoleModeRoot({mode}){
   return <div className={`vg-role-mode-root vg-mode-${mode} vg-view-${view}`}>
     <div className="narrow vg-role-mode-header">
       <div className="hdr">
-        <button className="iconbtn" onClick={()=>nav('/home')} aria-label="Огляд"><Icon name="house"/></button>
+        <button className="iconbtn" onClick={()=>nav(roleRoute(mode,'home'))} aria-label="Огляд"><Icon name="house"/></button>
         <div style={{flex:1,marginLeft:10}}><h1>{LABEL[mode]||'VARANGYM'}</h1><div className="sub">{SUB[mode]||''} · VARANGYM</div></div>
-        <button className="iconbtn" onClick={()=>nav('/settings')} aria-label="Налаштування"><Icon name="gear"/></button>
+        {isHome&&<button className="iconbtn" onClick={()=>nav('/settings')} aria-label="Налаштування"><Icon name="gear"/></button>}
       </div>
       <nav className="vg-role-sections" aria-label={`${LABEL[mode]} sections`}>
         <button className={'vg-role-section '+(isHome?'on':'')} onClick={()=>nav(roleRoute(mode,'home'))}><Icon name="house"/><span>Огляд</span></button>
@@ -86,19 +86,12 @@ export function RoleModeRoot({mode}){
       .vg-role-section{appearance:none;display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;min-height:38px;padding:8px 11px;border-radius:999px;border:1px solid color-mix(in srgb,var(--label) 9%,transparent);background:var(--surface);color:var(--label-2);font-size:12px;font-weight:700;white-space:nowrap;transition:transform .16s ease,background .16s ease,color .16s ease,border-color .16s ease}
       .vg-role-section svg{width:15px;height:15px}.vg-role-section:active{transform:scale(.96)}.vg-role-section.on{background:color-mix(in srgb,var(--acc) 15%,var(--surface));border-color:color-mix(in srgb,var(--acc) 38%,transparent);color:var(--acc)}
       .vg-admin-quicknav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:2px 0 14px}
-      .vg-admin-quick{appearance:none;border:var(--hair) solid var(--sep);background:var(--surface);color:var(--text);border-radius:16px;padding:11px 10px;display:grid;grid-template-columns:34px minmax(0,1fr) 18px;align-items:center;gap:9px;text-align:left;min-width:0}
+      .vg-admin-quick{appearance:none;border:var(--hair) solid var(--sep);background:var(--surface);color:var(--label);border-radius:16px;padding:11px 10px;display:grid;grid-template-columns:34px minmax(0,1fr) 18px;align-items:center;gap:9px;text-align:left;min-width:0}
       .vg-admin-quick:active{transform:scale(.985)}
       .vg-admin-quick-icon{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:color-mix(in srgb,var(--acc) 16%,transparent);color:var(--acc)}
-      .vg-admin-quick-copy{min-width:0;display:grid;gap:2px}.vg-admin-quick-copy b{font-size:14px;line-height:1.1}.vg-admin-quick-copy small{font-size:10px;line-height:1.2;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .vg-admin-quick>svg{width:16px;height:16px;color:var(--muted)}
+      .vg-admin-quick-copy{min-width:0;display:grid;gap:2px}.vg-admin-quick-copy b{font-size:14px;line-height:1.1}.vg-admin-quick-copy small{font-size:10px;line-height:1.2;color:var(--label-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .vg-admin-quick>svg{width:16px;height:16px;color:var(--label-2)}
       .vg-code-value{appearance:none;width:100%;background:color-mix(in srgb,var(--acc) 9%,var(--surface-2));color:var(--label);border:1px solid color-mix(in srgb,var(--acc) 28%,transparent);border-radius:14px;padding:14px;margin:9px 0;font-size:23px;font-weight:850;letter-spacing:.08em;overflow-wrap:anywhere}
-      .vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type{gap:9px}
-      .vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat{min-height:98px;padding:14px;border:var(--hair) solid var(--sep);background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 94%,var(--acc) 6%),var(--surface));box-shadow:none}
-      .vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat .n{font-size:24px;line-height:1.05;letter-spacing:-.035em}
-      .vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat .l{margin-top:5px;font-size:11px;font-weight:700}
-      .vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat .s{margin-top:3px;font-size:10px;color:var(--muted)}
-      .vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat:nth-child(1),.vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat:nth-child(7){background:linear-gradient(145deg,color-mix(in srgb,var(--acc) 18%,var(--surface)),var(--surface))}
-      .vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat:nth-child(3),.vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat:nth-child(5),.vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat:nth-child(6),.vg-mode-admin.vg-view-home .vg-role-console-body>.narrow>.grid2:first-of-type>.stat:nth-child(8){display:none}
       @media (max-width:430px){.vg-admin-quicknav{gap:7px}.vg-admin-quick{padding:10px 8px;grid-template-columns:30px minmax(0,1fr) 14px}.vg-admin-quick-icon{width:30px;height:30px}.vg-admin-quick-copy small{font-size:9px}.vg-role-section{padding:7px 10px;min-height:36px}}
     `}</style>
   </div>
