@@ -35,7 +35,6 @@ import History from './views/History.jsx'
 import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import Settings from './views/Settings.jsx'
-import Admin from './views/Admin.jsx'
 import RoleConsole from './views/RoleConsole.jsx'
 import RoleLibrary from './views/RoleLibrary.jsx'
 import CoachChat from './views/CoachChat.jsx'
@@ -133,7 +132,6 @@ function Shell() {
               <Route path="/trainer" element={<RoleConsole mode="trainer" />} />
               <Route path="/business" element={<RoleConsole mode="business" />} />
               <Route path="/admin" element={<RoleConsole mode="admin" />} />
-              <Route path="/admin/accounts" element={<Admin />} />
               <Route path="/coach" element={<CoachChat />} />
               <Route path="/coach/intake" element={<CoachIntake />} />
               <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
