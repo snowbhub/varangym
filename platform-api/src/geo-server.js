@@ -87,6 +87,10 @@ function endpoint(ip) {
     ? GEOIP_ENDPOINT.replace('{ip}', encodeURIComponent(ip))
     : `${GEOIP_ENDPOINT.replace(/\/$/,'')}/${encodeURIComponent(ip)}`;
 }
+async function geoTableReady() {
+  const { rows } = await query(`SELECT to_regclass('public.user_geo_profiles') AS table_name`);
+  return !!rows[0]?.table_name;
+}
 async function lookup(ip) {
   if (!publicIp(ip)) return null;
   const controller = new AbortController();
@@ -116,7 +120,7 @@ async function lookup(ip) {
   }
 }
 async function saveGeo(userId, data) {
-  if (!data) return null;
+  if (!data || !(await geoTableReady())) return null;
   const { rows } = await query(
     `INSERT INTO user_geo_profiles(user_id,ip,country_code,country,region,city,timezone,latitude,longitude,source,updated_at)
      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,now())
@@ -152,6 +156,7 @@ async function enrichMissing() {
   if (enriching) return;
   enriching = true;
   try {
+    if (!(await geoTableReady())) return;
     const { rows } = await query(
       `SELECT DISTINCT ON (s.user_id) s.user_id,s.ip_hint,s.last_seen_at,g.ip AS geo_ip,g.updated_at AS geo_updated_at
          FROM sessions s
@@ -191,6 +196,7 @@ async function canSeeTarget(user,targetId) {
 async function adminLocations(req,res) {
   const user = await needAdmin(req,res);
   if (!user) return;
+  if (!(await geoTableReady())) return json(res,200,{users:[],byCity:[],byRegion:[],byCountry:[],known:0,total:0,pending:true});
   enrichMissing().catch(()=>{});
   const { rows } = await query(
     `SELECT u.id,u.display_name,u.email,g.ip,g.country_code,g.country,g.region,g.city,g.timezone,
@@ -219,6 +225,7 @@ async function userLocation(req,res,id) {
   const user = await needUser(req,res);
   if (!user) return;
   if (!(await canSeeTarget(user,id))) return json(res,403,{error:'forbidden'});
+  if (!(await geoTableReady())) return json(res,200,{location:null,pending:true});
   let row = (await query(`SELECT * FROM user_geo_profiles WHERE user_id=$1`,[id])).rows[0] || null;
   const session = await latestSession(id);
   if (session?.ip_hint && publicIp(session.ip_hint) &&
@@ -232,6 +239,7 @@ async function userLocation(req,res,id) {
 async function refreshLocation(req,res,id) {
   const user = await needAdmin(req,res);
   if (!user) return;
+  if (!(await geoTableReady())) return json(res,503,{error:'geo database is still migrating'});
   const s = await latestSession(id);
   if (!s?.ip_hint) return json(res,404,{error:'no recent IP'});
   const row = await enrichUser(id,s.ip_hint);
@@ -240,7 +248,7 @@ async function refreshLocation(req,res,id) {
 
 await query('SELECT 1');
 console.log('[varangym-geo] database ready');
-enrichMissing().catch(()=>{});
+setTimeout(()=>enrichMissing().catch(()=>{}),1500).unref();
 const timer = setInterval(()=>enrichMissing().catch(()=>{}),GEOIP_POLL_MS);
 timer.unref();
 
