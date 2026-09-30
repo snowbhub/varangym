@@ -22,8 +22,12 @@ export function effectiveExercise(ex,lang,body){
   const md=o.metadata||{}
   const manual=adminEdited(o)
   const female=body==='female'
-  const img=female?(md.imageFemale??md.image):(md.imageMale??md.image)
-  const gif=female?(md.gifFemale??md.gif):(md.gifMale??md.gif)
+  // Bootstrap/import rows may contain source media metadata in a different path format. Those rows
+  // are editor source material, not runtime overrides. Keep the canonical 1,324-item catalogue media
+  // unless an administrator explicitly saved this exercise; otherwise a harmless translation import
+  // can turn /img/0001-x.jpg into a broken /img/images/0001-x.jpg card.
+  const img=manual?(female?(md.imageFemale??md.image):(md.imageMale??md.image)):undefined
+  const gif=manual?(female?(md.gifFemale??md.gif):(md.gifMale??md.gif)):undefined
   return {
     ...ex,
     // Keep the canonical source name unless an admin explicitly edited this exercise. The UI's
