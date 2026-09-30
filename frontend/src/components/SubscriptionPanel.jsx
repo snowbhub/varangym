@@ -2,12 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api.js'
 import { businessMemberships, loadPlatformIdentity, trainerMemberships } from '../lib/platform-role.js'
 import { useUI } from '../store/useUI.js'
-import Button from './ui.jsx'
+import { Button } from './ui.jsx'
 import Icon from './Icon.jsx'
 
 const money=(cents,currency='USD')=>new Intl.NumberFormat('uk-UA',{style:'currency',currency,maximumFractionDigits:2}).format(Number(cents||0)/100)
 const date=v=>{if(!v)return'—';try{return new Date(v).toLocaleDateString('uk-UA')}catch{return'—'}}
-const audienceOfSub=s=>s?.plan_code?.startsWith('business_')?'organization':s?.plan_code?.startsWith('coach_')?'trainer':'solo'
 const active=s=>['active','trialing'].includes(String(s?.status||''))
 
 const COPY={
@@ -108,7 +107,9 @@ export default function SubscriptionPanel(){
 
   const grouped={solo:plans.filter(p=>p.audience==='solo'),trainer:plans.filter(p=>p.audience==='trainer'),organization:plans.filter(p=>p.audience==='organization')}
   const currentLabel=current?.plan_metadata?.label||current?.plan_code||'Без активного тарифу'
-  const currentStatus=current?.status==='trialing'?`Trial до ${date(current.trial_ends_at)}`:current?.current_period_end?`Активний до ${date(current.current_period_end)}`:current?.status||'Можна вибрати тариф нижче'
+  const currentStatus=current?.status==='trialing'
+    ? `Trial до ${date(current.trial_ends_at)}`
+    : current?.current_period_end?`Активний до ${date(current.current_period_end)}`:current?.status||'Можна вибрати тариф нижче'
 
   return <div className="vg-subscription-manager">
     <div className="card vg-subscription-hero">
