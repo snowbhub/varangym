@@ -13,6 +13,7 @@ import { installViewportGuard } from './lib/viewport-guard.js'
 import { installChipDrag } from './lib/hchips.js'
 import { syncPushSubscription } from './lib/push.js'
 import { loadExerciseOverrides } from './lib/exercise-overrides.js'
+import { api } from './lib/api.js'
 import { MOBILE } from './lib/mobile.js'
 import { startFlow } from './sheets.jsx'
 import TabBar from './components/TabBar.jsx'
@@ -87,6 +88,13 @@ function Shell() {
   useEffect(() => {
     if (!user || !ready) return
     loadExerciseOverrides().catch(() => {})
+  }, [user?.id, ready])
+  useEffect(() => {
+    if (!user?.id || !ready) return
+    // Resolve city/region/country from the latest public session IP immediately after a
+    // signed-in profile is ready. The geo service caches the result in Postgres and only
+    // refreshes when the IP changes or the cached row is stale, so this is cheap on return visits.
+    api(`/api/geo/user/${encodeURIComponent(user.id)}`).catch(() => {})
   }, [user?.id, ready])
   useEffect(() => {
     const onScroll = () => {
