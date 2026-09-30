@@ -294,53 +294,132 @@ function AdminConsole({view,data,geo,invites,reload}) {
 
 function TrainerConsole({view,workspaceId,overview,analytics,invites,reload}) {
   const [client,setClient]=useState(null)
-  const clients=overview?.clients||[]
+  const clients=overview?.clients||analytics?.clients||[]
   if(client)return <ClientDetail client={client} workspaceId={workspaceId} onBack={()=>setClient(null)}/>
   const daily=analytics?.daily||[]
+  const top=analytics?.topExercises||[]
   const workouts=daily.reduce((n,x)=>n+Number(x.workouts||0),0)
-  const sets=daily.reduce((n,x)=>n+Number(x.completed_sets||0),0)
+  const sets=daily.reduce((n,x)=>n+Number(x.sets??x.completed_sets??0),0)
   const active7=clients.filter(c=>Number(c.workouts_7d||0)>0).length
+  const active30=clients.filter(c=>Number(c.workouts_period||c.workouts_30d||0)>0).length
+  const consistent=clients.filter(c=>Number(c.workouts_period||c.workouts_30d||0)>=8).length
+  const never=clients.filter(c=>!c.last_workout_at).length
+  const weighed=clients.filter(c=>c.latest_weight!=null).length
+  const avg=clients.length?Math.round(workouts/clients.length*10)/10:0
+  const activeCodes=invites.filter(activeInvite).length
+  const topExercise=top[0]?.name||'—'
+  const topRows=top.map(x=>({label:x.name,count:Number(x.completed_sets||x.workouts||0)}))
+
   if(view==='home')return <>
-    <div className="card"><div className="lbl2">VARANGYM · Coach</div><div className="big" style={{fontSize:29}}>Мої клієнти</div><div className="ss">Плани, активність, прогрес і статистика в одному режимі.</div></div>
+    <div className="card"><div className="row between"><div><div className="lbl2">VARANGYM · Coach</div><div className="big" style={{fontSize:29}}>Мої клієнти</div><div className="ss">Плани, активність, прогрес і статистика в одному live dashboard.</div></div><span className="tag acc">30 днів</span></div></div>
     <div className="grid2">
-      <Metric value={clients.length} label="клієнтів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/><Metric value={num(sets)} label="підходів / 30д"/>
-      <Metric value={invites.filter(activeInvite).length} label="активних кодів"/><Metric value={clients.filter(c=>c.last_workout_at).length} label="тренувались хоча б раз"/>
+      <Metric value={clients.length} label="клієнтів"/>
+      <Metric value={active7} label="активні / 7д"/>
+      <Metric value={active30} label="активні / 30д"/>
+      <Metric value={num(workouts)} label="тренувань / 30д"/>
+      <Metric value={num(sets)} label="підходів / 30д"/>
+      <Metric value={num(avg)} label="тренувань / клієнта"/>
+      <Metric value={consistent} label="8+ тренувань / 30д"/>
+      <Metric value={never} label="ще без тренувань"/>
+      <Metric value={weighed} label="мають вагу в профілі"/>
+      <Metric value={activeCodes} label="активних кодів"/>
+      <Metric value={clients.filter(c=>c.last_workout_at).length} label="тренувались хоча б раз"/>
+      <Metric value={topExercise} label="топ-вправа"/>
     </div>
-    <ChartCard title="Активність клієнтів · 30 днів" rows={daily} valueKey="workouts"/>
-    <ChartCard title="Підходи · 30 днів" rows={daily} valueKey="completed_sets"/>
-    <Section title="Клієнти">{clients.slice(0,10).map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name} subtitle={`${c.workouts_period||c.workouts_30d||0} тренувань / 30д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
+    <ChartCard title="Тренування клієнтів · 30 днів" subtitle="Кількість завершених тренувань по днях" rows={daily} valueKey="workouts"/>
+    <ChartCard title="Підходи · 30 днів" subtitle="Виконані підходи всіх твоїх клієнтів" rows={daily} valueKey={daily.some(x=>x.sets!=null)?'sets':'completed_sets'}/>
+    <Distribution title="Найчастіше треновані вправи" rows={topRows}/>
+    <Section title="Клієнти">{clients.slice(0,10).map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name} subtitle={`${c.workouts_period||c.workouts_30d||0} тренувань / 30д${c.latest_weight!=null?` · ${c.latest_weight} кг`:''}`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
   </>
   if(view==='people')return <><Section title={`Клієнти · ${clients.length}`}>{clients.map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name} subtitle={c.email||''} value={`${c.workouts_period||c.workouts_30d||0} / 30д`} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section><InviteManager mode="trainer" workspaceId={workspaceId} invites={invites} reload={reload}/></>
   if(view==='dashboard')return <PlanManagerPro mode="trainer" workspaceId={workspaceId} clients={clients}/>
   if(view==='stats')return <>
-    <div className="grid2"><Metric value={clients.length} label="клієнтів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/><Metric value={num(sets)} label="підходів / 30д"/><Metric value={clients.filter(c=>Number(c.workouts_30d||c.workouts_period||0)>=8).length} label="8+ тренувань / 30д"/><Metric value={clients.filter(c=>!c.last_workout_at).length} label="без тренувань"/></div>
-    <ChartCard title="Тренування клієнтів" rows={daily} valueKey="workouts"/><ChartCard title="Підходи клієнтів" rows={daily} valueKey="completed_sets"/>
-    <Section title="Прогрес клієнтів">{clients.map(c=><Row key={c.id||c.user_id} icon="chartLine" title={c.display_name} subtitle={`${c.workouts_7d||0} тренувань / 7д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
+    <div className="card"><div className="lbl2">Статистика клієнтів</div><div className="big" style={{fontSize:27}}>Coach analytics</div><div className="ss">Жива активність, дисципліна і drill-down у статистику кожного клієнта.</div></div>
+    <div className="grid2">
+      <Metric value={clients.length} label="клієнтів"/>
+      <Metric value={active7} label="активні / 7д"/>
+      <Metric value={active30} label="активні / 30д"/>
+      <Metric value={num(workouts)} label="тренувань / 30д"/>
+      <Metric value={num(sets)} label="підходів / 30д"/>
+      <Metric value={num(avg)} label="тренувань / клієнта"/>
+      <Metric value={consistent} label="8+ тренувань / 30д"/>
+      <Metric value={never} label="без тренувань"/>
+      <Metric value={weighed} label="мають заміри ваги"/>
+      <Metric value={activeCodes} label="активних кодів"/>
+    </div>
+    <ChartCard title="Тренування клієнтів" rows={daily} valueKey="workouts"/>
+    <ChartCard title="Підходи клієнтів" rows={daily} valueKey={daily.some(x=>x.sets!=null)?'sets':'completed_sets'}/>
+    <Distribution title="Топ вправ за підходами" rows={topRows}/>
+    <Section title="Прогрес клієнтів">{clients.map(c=><Row key={c.id||c.user_id} icon="chartLine" title={c.display_name} subtitle={`${c.workouts_7d||0} тренувань / 7д · ${c.workouts_period||c.workouts_30d||0} / 30д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
   </>
   return <div className="card"><div className="lbl2">Вправи</div><div className="ss">Відкривай рідну бібліотеку VARANGYM з нижньої вкладки «Вправи».</div></div>
 }
 
 function BusinessConsole({view,workspaceId,insights,analytics,invites,reload}) {
   const [client,setClient]=useState(null)
-  const trainers=insights?.trainers||[],clients=insights?.clients||[],billing=insights?.billing,subs=insights?.subscriptions||[]
+  const trainers=insights?.trainers||analytics?.trainers||[],clients=insights?.clients||[],billing=insights?.billing,subs=insights?.subscriptions||[]
   if(client)return <ClientDetail client={client} workspaceId={workspaceId} onBack={()=>setClient(null)}/>
   const daily=analytics?.daily||[]
+  const top=analytics?.topExercises||[]
   const workouts=daily.reduce((n,x)=>n+Number(x.workouts||0),0)
-  const sets=daily.reduce((n,x)=>n+Number(x.completed_sets||0),0)
+  const sets=daily.reduce((n,x)=>n+Number(x.sets??x.completed_sets??0),0)
   const active7=clients.filter(c=>Number(c.workouts_7d||0)>0).length
+  const active30=clients.filter(c=>Number(c.workouts_30d||0)>0).length
+  const inactive=Math.max(0,clients.length-active30)
+  const avg=clients.length?Math.round(workouts/clients.length*10)/10:0
+  const covered=trainers.filter(t=>Number(t.clients||0)>0).length
+  const activeCodes=invites.filter(activeInvite).length
+  const topExercise=top[0]?.name||'—'
+  const topRows=top.map(x=>({label:x.name,count:Number(x.completed_sets||x.workouts||0)}))
+  const trainerRows=trainers.map(t=>({label:t.display_name,count:Number(t.clients||0)}))
+  const periodRevenue=analytics?.revenue?.period_cents??insights?.revenue?.month_cents??0
+
   if(view==='home')return <>
-    <div className="card"><div className="lbl2">VARANGYM · Business</div><div className="big" style={{fontSize:29}}>{insights?.workspace?.name||'Організація'}</div><div className="ss">Команда, клієнти, тариф, дохід і активність.</div></div>
+    <div className="card"><div className="row between"><div><div className="lbl2">VARANGYM · Business</div><div className="big" style={{fontSize:29}}>{insights?.workspace?.name||'Організація'}</div><div className="ss">Команда, клієнти, тариф, дохід і активність — не просто список цифр.</div></div><span className="tag acc">Live</span></div></div>
     <div className="grid2">
-      <Metric value={trainers.length} label="тренерів"/><Metric value={clients.length} label="клієнтів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/>
-      <Metric value={billing?.plan_metadata?.label||billing?.plan_code||'—'} label="поточний план"/><Metric value={subs[0]?.status||'—'} label="статус підписки"/><Metric value={money(insights?.revenue?.month_cents)} label="дохід / місяць"/><Metric value={money(insights?.revenue?.lifetime_cents)} label="дохід за весь час"/>
+      <Metric value={trainers.length} label="тренерів"/>
+      <Metric value={clients.length} label="клієнтів"/>
+      <Metric value={active7} label="активні / 7д"/>
+      <Metric value={active30} label="активні / 30д"/>
+      <Metric value={inactive} label="неактивні / 30д"/>
+      <Metric value={num(workouts)} label="тренувань / 30д"/>
+      <Metric value={num(sets)} label="підходів / 30д"/>
+      <Metric value={num(avg)} label="тренувань / клієнта"/>
+      <Metric value={covered} label="тренерів з клієнтами"/>
+      <Metric value={activeCodes} label="активних кодів"/>
+      <Metric value={billing?.plan_metadata?.label||billing?.plan_code||'—'} label="поточний план"/>
+      <Metric value={subs[0]?.status||'—'} label="статус підписки"/>
+      <Metric value={money(periodRevenue)} label="дохід / період"/>
+      <Metric value={money(insights?.revenue?.lifetime_cents)} label="дохід за весь час"/>
+      <Metric value={topExercise} label="топ-вправа"/>
     </div>
-    <ChartCard title="Активність організації" rows={daily} valueKey="workouts"/><ChartCard title="Підходи організації" rows={daily} valueKey="completed_sets"/>
+    <ChartCard title="Активність організації · 30 днів" subtitle="Тренування всіх клієнтів" rows={daily} valueKey="workouts"/>
+    <ChartCard title="Підходи організації · 30 днів" rows={daily} valueKey={daily.some(x=>x.sets!=null)?'sets':'completed_sets'}/>
+    <Distribution title="Навантаження тренерів · клієнти" rows={trainerRows}/>
+    <Distribution title="Топ вправ організації" rows={topRows}/>
   </>
   if(view==='people')return <><Section title={`Тренери · ${trainers.length}`}>{trainers.map(t=><Row key={t.id} icon="personCircle" title={t.display_name} subtitle={t.email||''} value={`${t.clients||0} клієнтів`}/>)}</Section><Section title={`Клієнти · ${clients.length}`}>{clients.map(c=><Row key={c.id} icon="personCircle" title={c.display_name} subtitle={c.email||''} value={`${c.workouts_30d||0} / 30д`} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section><InviteManager mode="business" workspaceId={workspaceId} invites={invites} reload={reload}/></>
   if(view==='dashboard')return <><div className="grid2"><Metric value={billing?.plan_metadata?.label||billing?.plan_code||'—'} label="тариф"/><Metric value={subs[0]?.status||'—'} label="статус"/><Metric value={date(subs[0]?.trial_ends_at||subs[0]?.current_period_end)} label="наступна дата"/><Metric value={money(insights?.revenue?.lifetime_cents)} label="дохід за весь час"/></div><PlanManagerPro mode="business" workspaceId={workspaceId} clients={clients}/></>
   if(view==='stats')return <>
-    <div className="grid2"><Metric value={clients.length} label="клієнтів"/><Metric value={trainers.length} label="тренерів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/><Metric value={num(sets)} label="підходів / 30д"/><Metric value={money(insights?.revenue?.month_cents)} label="дохід / місяць"/></div>
-    <ChartCard title="Тренування організації" rows={daily} valueKey="workouts"/><ChartCard title="Підходи організації" rows={daily} valueKey="completed_sets"/>
+    <div className="card"><div className="lbl2">Статистика організації</div><div className="big" style={{fontSize:27}}>Business analytics</div><div className="ss">Активність клієнтів, навантаження тренерів і фінансова динаміка.</div></div>
+    <div className="grid2">
+      <Metric value={clients.length} label="клієнтів"/>
+      <Metric value={trainers.length} label="тренерів"/>
+      <Metric value={active7} label="активні / 7д"/>
+      <Metric value={active30} label="активні / 30д"/>
+      <Metric value={inactive} label="неактивні / 30д"/>
+      <Metric value={num(workouts)} label="тренувань / 30д"/>
+      <Metric value={num(sets)} label="підходів / 30д"/>
+      <Metric value={num(avg)} label="тренувань / клієнта"/>
+      <Metric value={covered} label="тренерів з клієнтами"/>
+      <Metric value={money(periodRevenue)} label="дохід / 30д"/>
+      <Metric value={money(insights?.revenue?.lifetime_cents)} label="дохід за весь час"/>
+      <Metric value={activeCodes} label="активних кодів"/>
+    </div>
+    <ChartCard title="Тренування організації" rows={daily} valueKey="workouts"/>
+    <ChartCard title="Підходи організації" rows={daily} valueKey={daily.some(x=>x.sets!=null)?'sets':'completed_sets'}/>
+    <Distribution title="Навантаження тренерів" rows={trainerRows}/>
+    <Distribution title="Топ вправ" rows={topRows}/>
     <Section title="Клієнти · прогрес">{clients.map(c=><Row key={c.id} icon="chartLine" title={c.display_name} subtitle={`${c.workouts_30d||0} тренувань / 30д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
   </>
   return <div className="card"><div className="lbl2">Вправи</div><div className="ss">Відкривай рідну бібліотеку VARANGYM з нижньої вкладки «Вправи».</div></div>
@@ -381,25 +460,31 @@ export default function RoleConsole({mode}) {
         const [i,a,c,g]=await Promise.allSettled([api('/api/insights/admin'),api('/api/analytics/admin?days=90'),api('/api/invites'),api('/api/geo/admin')])
         if(i.status!=='fulfilled')throw i.reason
         setData(i.value)
-        if(a.status==='fulfilled')setAnalytics(a.value)
-        if(c.status==='fulfilled')setInvites(c.value.invites||[])
-        if(g.status==='fulfilled')setGeo(g.value)
+        setAnalytics(a.status==='fulfilled'?a.value:null)
+        setInvites(c.status==='fulfilled'?(c.value.invites||[]):[])
+        setGeo(g.status==='fulfilled'?g.value:null)
       }else if(mode==='business'){
         if(!workspaceId)throw new Error('Немає business workspace')
-        const [i,a,c]=await Promise.all([
+        const [i,a,c]=await Promise.allSettled([
           api(`/api/insights/workspace?workspaceId=${encodeURIComponent(workspaceId)}`),
           api(`/api/analytics/business?days=30&workspaceId=${encodeURIComponent(workspaceId)}`),
           api(`/api/invites?workspaceId=${encodeURIComponent(workspaceId)}`)
         ])
-        setData(i);setAnalytics(a);setInvites(c.invites||[])
+        if(i.status!=='fulfilled')throw i.reason
+        setData(i.value)
+        setAnalytics(a.status==='fulfilled'?a.value:null)
+        setInvites(c.status==='fulfilled'?(c.value.invites||[]):[])
       }else{
         if(!workspaceId)throw new Error('Немає workspace тренера')
-        const [o,a,c]=await Promise.all([
+        const [o,a,c]=await Promise.allSettled([
           api(`/api/coach/clients?workspaceId=${encodeURIComponent(workspaceId)}`),
           api(`/api/analytics/coach?days=30&workspaceId=${encodeURIComponent(workspaceId)}`),
           api(`/api/invites?workspaceId=${encodeURIComponent(workspaceId)}`)
         ])
-        setData(o);setAnalytics(a);setInvites(c.invites||[])
+        if(o.status!=='fulfilled')throw o.reason
+        setData(o.value)
+        setAnalytics(a.status==='fulfilled'?a.value:null)
+        setInvites(c.status==='fulfilled'?(c.value.invites||[]):[])
       }
     }catch(e){setErr(e.message||'Помилка')}
     finally{setLoading(false)}
