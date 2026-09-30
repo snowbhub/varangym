@@ -22,7 +22,6 @@ function json(res, status, body) {
   });
   res.end(text);
 }
-
 function parseCookies(header = '') {
   const out = {};
   for (const part of String(header).split(';')) {
@@ -35,7 +34,6 @@ function parseCookies(header = '') {
   }
   return out;
 }
-
 const hashToken = value => crypto.createHash('sha256').update(String(value || '')).digest('hex');
 function sessionToken(req) {
   const cookie = parseCookies(req.headers.cookie || '')[COOKIE_NAME];
@@ -43,7 +41,6 @@ function sessionToken(req) {
   const auth = String(req.headers.authorization || '');
   return auth.startsWith('Bearer ') ? auth.slice(7).trim() : null;
 }
-
 async function currentUser(req) {
   const token = sessionToken(req);
   if (!token) return null;
@@ -56,13 +53,11 @@ async function currentUser(req) {
   const user = rows[0] || null;
   return user?.status === 'active' ? user : null;
 }
-
 async function requireUser(req, res) {
   const user = await currentUser(req);
   if (!user) { json(res, 401, { error: 'not signed in' }); return null; }
   return user;
 }
-
 async function bodyJson(req) {
   let size = 0;
   const chunks = [];
@@ -80,12 +75,10 @@ async function bodyJson(req) {
     throw Object.assign(new Error('invalid json'), { status: 400 });
   }
 }
-
 function statusOf(err) {
   const n = Number(err?.status || 500);
   return Number.isInteger(n) && n >= 400 && n < 600 ? n : 500;
 }
-
 async function membership(userId, workspaceId) {
   const { rows } = await query(
     `SELECT role FROM workspace_memberships
@@ -94,7 +87,6 @@ async function membership(userId, workspaceId) {
   );
   return new Set(rows.map(r => r.role));
 }
-
 async function canManageClient(user, workspaceId, clientId) {
   if (user.is_platform_admin) return true;
   const roles = await membership(user.id, workspaceId);
@@ -107,7 +99,6 @@ async function canManageClient(user, workspaceId, clientId) {
   );
   return !!link.rowCount;
 }
-
 function scheduledRoutines(state) {
   const routines = new Map((Array.isArray(state?.routines) ? state.routines : []).map(r => [String(r.id), r]));
   const out = [];
@@ -120,33 +111,25 @@ function scheduledRoutines(state) {
   }
   return out;
 }
-
 function prescription(ex = {}) {
-  const keep = [
-    'sets','mode','reps','weight','sec','min','speed','bodyweight','side','prog','inc','deloadFactor',
-    'repsMin','repsMax','restSec','warmupRestSec','warmupSets','intensifier','sg'
-  ];
+  const keep = ['sets','mode','reps','weight','sec','min','speed','bodyweight','side','prog','inc','deloadFactor','repsMin','repsMax','restSec','warmupRestSec','warmupSets','intensifier','sg'];
   const out = {};
   for (const key of keep) if (ex[key] != null) out[key] = ex[key];
   return out;
 }
-
 function customMap(state) {
   return new Map((Array.isArray(state?.customEx) ? state.customEx : []).map(x => [String(x.id), x]));
 }
-
 function trackingMode(custom = {}, ex = {}) {
   if (ex.mode === 'time') return 'time';
   if (ex.mode === 'cardio' || custom.bp === 'cardio') return 'cardio';
   if (ex.bodyweight === true || custom.eq === 'body weight') return 'bodyweight';
   return 'reps_weight';
 }
-
 async function ensureExercise(db, trainer, workspaceId, sourceId, custom, ex) {
   const built = await db.query('SELECT id FROM exercises WHERE legacy_key=$1 LIMIT 1', [sourceId]);
   if (built.rows[0]) return built.rows[0].id;
   if (!custom) throw Object.assign(new Error(`exercise ${sourceId} is not available in the VARANGYM library`), { status: 409 });
-
   const existing = await db.query(
     `SELECT id FROM exercises
       WHERE owner_user_id=$1 AND owner_workspace_id=$2 AND metadata->>'opengymCustomId'=$3 AND active=true
@@ -154,28 +137,20 @@ async function ensureExercise(db, trainer, workspaceId, sourceId, custom, ex) {
     [trainer.id, workspaceId, sourceId]
   );
   if (existing.rows[0]) return existing.rows[0].id;
-
   const primary = custom.tg || (Array.isArray(custom.primaries) ? custom.primaries[0] : null) || custom.bp || 'full body';
   const secondary = Array.isArray(custom.secondaries) ? custom.secondaries : Array.isArray(custom.sm) ? custom.sm : [];
   const inserted = await db.query(
     `INSERT INTO exercises(owner_scope,owner_workspace_id,owner_user_id,tracking_mode,equipment_key,primary_muscle_key,metadata,active)
      VALUES ('trainer',$1,$2,$3,$4,$5,$6::jsonb,true) RETURNING id`,
     [workspaceId, trainer.id, trackingMode(custom, ex), custom.eq || null, primary,
-      JSON.stringify({
-        opengymCustomId: sourceId,
-        bodyPart: custom.bp || null,
-        target: custom.tg || null,
-        secondaryMuscles: secondary,
-        source: 'trainer-opengym-profile'
-      })]
+      JSON.stringify({ opengymCustomId: sourceId, bodyPart: custom.bp || null, target: custom.tg || null, secondaryMuscles: secondary, source: 'trainer-varangym-profile' })]
   );
   const id = inserted.rows[0].id;
   await db.query(
     `INSERT INTO exercise_translations(exercise_id,locale,name,description,instructions)
      VALUES ($1,$2,$3,$4,$5::jsonb)
-     ON CONFLICT (exercise_id,locale) DO UPDATE
-       SET name=EXCLUDED.name,description=EXCLUDED.description,instructions=EXCLUDED.instructions`,
-    [id, String(trainer.locale || 'ru').slice(0,16), String(custom.n || 'Custom exercise').slice(0,160), custom.desc || null, '[]']
+     ON CONFLICT (exercise_id,locale) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,instructions=EXCLUDED.instructions`,
+    [id, String(trainer.locale || 'uk').slice(0,16), String(custom.n || 'Custom exercise').slice(0,160), custom.desc || null, '[]']
   );
   await db.query(
     `INSERT INTO workspace_exercise_refs(workspace_id,trainer_user_id,exercise_id,visibility)
@@ -184,7 +159,79 @@ async function ensureExercise(db, trainer, workspaceId, sourceId, custom, ex) {
   );
   return id;
 }
+function validateCustomDays(raw) {
+  if (!Array.isArray(raw) || !raw.length) throw Object.assign(new Error('program needs at least one day'), { status: 400 });
+  if (raw.length > 21) throw Object.assign(new Error('too many program days'), { status: 400 });
+  return raw.map((d,di) => {
+    const weekday = Number(d?.weekday);
+    if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) throw Object.assign(new Error(`invalid weekday at day ${di + 1}`), { status: 400 });
+    const exercises = Array.isArray(d?.exercises) ? d.exercises : [];
+    if (exercises.length > 60) throw Object.assign(new Error(`too many exercises at day ${di + 1}`), { status: 400 });
+    return {
+      weekday,
+      sequence: Number.isInteger(Number(d?.sequence)) ? Number(d.sequence) : di,
+      title: String(d?.title || `Training ${di + 1}`).slice(0,120),
+      exercises: exercises.map((e,ei) => {
+        const id = String(e?.id || e?.legacyKey || '').trim();
+        if (!id) throw Object.assign(new Error(`exercise id required at day ${di + 1}, position ${ei + 1}`), { status: 400 });
+        return { ...e, id, note: e?.note == null ? null : String(e.note).slice(0,500) };
+      })
+    };
+  });
+}
+async function publishVersion({user,workspaceId,clientId,name,days,customs=new Map(),note='Published from VARANGYM'}) {
+  const db = await pool.connect();
+  try {
+    await db.query('BEGIN');
+    let program = (await db.query(
+      `SELECT * FROM programs WHERE workspace_id=$1 AND client_user_id=$2 AND status='active' ORDER BY updated_at DESC LIMIT 1`,
+      [workspaceId, clientId]
+    )).rows[0];
+    if (!program) {
+      program = (await db.query(
+        `INSERT INTO programs(workspace_id,client_user_id,trainer_user_id,name,status)
+         VALUES ($1,$2,$3,$4,'active') RETURNING *`,
+        [workspaceId,clientId,user.id,String(name||'VARANGYM Training').slice(0,160)]
+      )).rows[0];
+    } else {
+      await db.query('UPDATE programs SET trainer_user_id=$1,name=$2,updated_at=now() WHERE id=$3',[user.id,String(name||program.name||'VARANGYM Training').slice(0,160),program.id]);
+    }
+    const max = await db.query('SELECT COALESCE(max(version_number),0)::int AS n FROM program_versions WHERE program_id=$1',[program.id]);
+    const versionNumber = Number(max.rows[0]?.n || 0) + 1;
+    const versionId = (await db.query(
+      `INSERT INTO program_versions(program_id,version_number,status,published_at,created_by_user_id,notes)
+       VALUES ($1,$2,'published',now(),$3,$4) RETURNING id`,
+      [program.id,versionNumber,user.id,note]
+    )).rows[0].id;
 
+    for (let di=0;di<days.length;di+=1) {
+      const day=days[di];
+      const dayId=(await db.query(
+        `INSERT INTO program_days(program_version_id,weekday,sequence_index,title,position)
+         VALUES ($1,$2,$3,$4,$5) RETURNING id`,
+        [versionId,day.weekday,day.sequence ?? di,String(day.title||`Training ${di+1}`).slice(0,120),di]
+      )).rows[0].id;
+      for (let ei=0;ei<day.exercises.length;ei+=1) {
+        const source=day.exercises[ei];
+        const exerciseId=await ensureExercise(db,user,workspaceId,String(source.id),customs.get(String(source.id)),source);
+        await db.query(
+          `INSERT INTO program_day_exercises(program_day_id,exercise_id,position,prescription,coach_notes)
+           VALUES ($1,$2,$3,$4::jsonb,$5)`,
+          [dayId,exerciseId,ei,JSON.stringify(prescription(source)),source.note||null]
+        );
+      }
+    }
+    await db.query(`UPDATE program_versions SET status='retired' WHERE program_id=$1 AND status='published' AND id<>$2`,[program.id,versionId]);
+    await db.query(`UPDATE program_assignments SET active=false,ends_at=now() WHERE client_user_id=$1 AND active=true AND ends_at IS NULL`,[clientId]);
+    await db.query(`INSERT INTO program_assignments(client_user_id,program_version_id,active) VALUES ($1,$2,true)`,[clientId,versionId]);
+    await db.query('UPDATE programs SET updated_at=now() WHERE id=$1',[program.id]);
+    await db.query('COMMIT');
+    return { programId:program.id,versionId,versionNumber,days:days.length,exercises:days.reduce((n,d)=>n+d.exercises.length,0) };
+  } catch(err) {
+    try { await db.query('ROLLBACK'); } catch {}
+    throw err;
+  } finally { db.release(); }
+}
 async function preview(req, res, url) {
   const user = await requireUser(req, res); if (!user) return;
   const workspaceId = url.searchParams.get('workspaceId');
@@ -197,140 +244,99 @@ async function preview(req, res, url) {
   const state = rows[0]?.state || {};
   const days = scheduledRoutines(state);
   return json(res, 200, {
-    rev: Number(rows[0]?.rev || 0),
-    updatedAt: rows[0]?.updated_at || null,
-    days: days.map(x => ({ weekday: x.weekday, routineId: x.routine.id, name: x.routine.name || 'Training', exercises: Array.isArray(x.routine.ex) ? x.routine.ex.length : 0 })),
-    customExercises: Array.isArray(state.customEx) ? state.customEx.length : 0
+    rev:Number(rows[0]?.rev||0),updatedAt:rows[0]?.updated_at||null,
+    days:days.map(x=>({weekday:x.weekday,routineId:x.routine.id,name:x.routine.name||'Training',exercises:Array.isArray(x.routine.ex)?x.routine.ex.length:0})),
+    customExercises:Array.isArray(state.customEx)?state.customEx.length:0
   });
 }
-
 async function publish(req, res) {
-  const user = await requireUser(req, res); if (!user) return;
-  const body = await bodyJson(req);
-  const workspaceId = body.workspaceId;
-  const clientId = body.clientId;
-  if (!workspaceId || !clientId) return json(res, 400, { error: 'workspaceId and clientId required' });
-  if (!(await canManageClient(user, workspaceId, clientId))) return json(res, 403, { error: 'forbidden' });
-
-  const profile = await query('SELECT state FROM user_profile_states WHERE user_id=$1', [user.id]);
-  const state = profile.rows[0]?.state || {};
-  const days = scheduledRoutines(state);
-  if (!days.length) return json(res, 409, { error: 'your Training App weekly plan is empty' });
-  const customs = customMap(state);
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    let program = (await client.query(
-      `SELECT * FROM programs
-        WHERE workspace_id=$1 AND client_user_id=$2 AND status='active'
-        ORDER BY updated_at DESC LIMIT 1`,
-      [workspaceId, clientId]
-    )).rows[0];
-
-    if (!program) {
-      const created = await client.query(
-        `INSERT INTO programs(workspace_id,client_user_id,trainer_user_id,name,status)
-         VALUES ($1,$2,$3,$4,'active') RETURNING *`,
-        [workspaceId, clientId, user.id, String(body.name || 'VARANGYM Training').slice(0,160)]
-      );
-      program = created.rows[0];
-    } else {
-      await client.query('UPDATE programs SET trainer_user_id=$1,updated_at=now() WHERE id=$2', [user.id, program.id]);
-    }
-
-    const max = await client.query('SELECT COALESCE(max(version_number),0)::int AS n FROM program_versions WHERE program_id=$1', [program.id]);
-    const versionNumber = Number(max.rows[0]?.n || 0) + 1;
-    const v = await client.query(
-      `INSERT INTO program_versions(program_id,version_number,status,published_at,created_by_user_id,notes)
-       VALUES ($1,$2,'published',now(),$3,$4) RETURNING id`,
-      [program.id, versionNumber, user.id, 'Published from trainer Training App']
-    );
-    const versionId = v.rows[0].id;
-
-    for (let di = 0; di < days.length; di += 1) {
-      const { weekday, sequence, routine } = days[di];
-      const d = await client.query(
-        `INSERT INTO program_days(program_version_id,weekday,sequence_index,title,position)
-         VALUES ($1,$2,$3,$4,$5) RETURNING id`,
-        [versionId, weekday, sequence, String(routine.name || `Training ${di + 1}`).slice(0,120), di]
-      );
-      const exercises = Array.isArray(routine.ex) ? routine.ex : [];
-      for (let ei = 0; ei < exercises.length; ei += 1) {
-        const source = exercises[ei] || {};
-        if (!source.id) continue;
-        const exerciseId = await ensureExercise(client, user, workspaceId, String(source.id), customs.get(String(source.id)), source);
-        await client.query(
-          `INSERT INTO program_day_exercises(program_day_id,exercise_id,position,prescription,coach_notes)
-           VALUES ($1,$2,$3,$4::jsonb,$5)`,
-          [d.rows[0].id, exerciseId, ei, JSON.stringify(prescription(source)), source.note || null]
-        );
-      }
-    }
-
-    await client.query(
-      `UPDATE program_versions SET status='retired'
-        WHERE program_id=$1 AND status='published' AND id<>$2`,
-      [program.id, versionId]
-    );
-    await client.query(
-      `UPDATE program_assignments SET active=false,ends_at=now()
-        WHERE client_user_id=$1 AND active=true AND ends_at IS NULL`,
-      [clientId]
-    );
-    // Migration 008 listens to this insert and bumps the client's openGym profile revision.
-    await client.query(
-      `INSERT INTO program_assignments(client_user_id,program_version_id,active)
-       VALUES ($1,$2,true)`,
-      [clientId, versionId]
-    );
-    await client.query('UPDATE programs SET updated_at=now() WHERE id=$1', [program.id]);
-    await client.query('COMMIT');
-
-    return json(res, 200, {
-      ok: true,
-      programId: program.id,
-      versionId,
-      versionNumber,
-      days: days.length,
-      exercises: days.reduce((n, x) => n + (Array.isArray(x.routine.ex) ? x.routine.ex.length : 0), 0)
+  const user = await requireUser(req,res); if(!user)return;
+  const body=await bodyJson(req);
+  const workspaceId=body.workspaceId,clientId=body.clientId;
+  if(!workspaceId||!clientId)return json(res,400,{error:'workspaceId and clientId required'});
+  if(!(await canManageClient(user,workspaceId,clientId)))return json(res,403,{error:'forbidden'});
+  const profile=await query('SELECT state FROM user_profile_states WHERE user_id=$1',[user.id]);
+  const state=profile.rows[0]?.state||{};
+  const sourceDays=scheduledRoutines(state);
+  if(!sourceDays.length)return json(res,409,{error:'your VARANGYM weekly plan is empty'});
+  const customs=customMap(state);
+  const days=sourceDays.map(({weekday,sequence,routine})=>({weekday,sequence,title:routine.name||'Training',exercises:Array.isArray(routine.ex)?routine.ex:[]}));
+  const result=await publishVersion({user,workspaceId,clientId,name:body.name,days,customs,note:'Published from trainer VARANGYM plan'});
+  return json(res,200,{ok:true,...result});
+}
+async function publishCustom(req,res){
+  const user=await requireUser(req,res);if(!user)return;
+  const body=await bodyJson(req);
+  const workspaceId=body.workspaceId,clientId=body.clientId;
+  if(!workspaceId||!clientId)return json(res,400,{error:'workspaceId and clientId required'});
+  if(!(await canManageClient(user,workspaceId,clientId)))return json(res,403,{error:'forbidden'});
+  const days=validateCustomDays(body.days);
+  const result=await publishVersion({user,workspaceId,clientId,name:body.name||'VARANGYM Program',days,note:'Published from client-specific VARANGYM editor'});
+  return json(res,200,{ok:true,...result});
+}
+async function clientProgram(req,res,url){
+  const user=await requireUser(req,res);if(!user)return;
+  const workspaceId=url.searchParams.get('workspaceId'),clientId=url.searchParams.get('clientId');
+  if(!workspaceId||!clientId)return json(res,400,{error:'workspaceId and clientId required'});
+  if(!(await canManageClient(user,workspaceId,clientId)))return json(res,403,{error:'forbidden'});
+  const head=(await query(
+    `SELECT p.id AS program_id,p.name,p.trainer_user_id,pv.id AS version_id,pv.version_number,pv.published_at
+       FROM program_assignments pa
+       JOIN program_versions pv ON pv.id=pa.program_version_id
+       JOIN programs p ON p.id=pv.program_id
+      WHERE pa.client_user_id=$1 AND pa.active=true AND pa.ends_at IS NULL AND p.workspace_id=$2
+      ORDER BY pv.published_at DESC NULLS LAST,pv.created_at DESC LIMIT 1`,
+    [clientId,workspaceId]
+  )).rows[0];
+  if(!head)return json(res,200,{program:null,days:[]});
+  const rows=(await query(
+    `SELECT pd.id AS day_id,pd.weekday,pd.sequence_index,pd.title,pd.position AS day_position,
+            pde.position AS exercise_position,pde.prescription,pde.coach_notes,
+            e.id AS exercise_uuid,e.legacy_key,e.tracking_mode,e.equipment_key,e.primary_muscle_key,
+            COALESCE(et.name,e.metadata->>'sourceName',e.legacy_key,'Exercise') AS exercise_name
+       FROM program_days pd
+       LEFT JOIN program_day_exercises pde ON pde.program_day_id=pd.id
+       LEFT JOIN exercises e ON e.id=pde.exercise_id
+       LEFT JOIN exercise_translations et ON et.exercise_id=e.id AND et.locale=$2
+      WHERE pd.program_version_id=$1
+      ORDER BY pd.position,pd.sequence_index,pde.position`,
+    [head.version_id,String(user.locale||'uk').slice(0,16)]
+  )).rows;
+  const map=new Map();
+  for(const r of rows){
+    if(!map.has(r.day_id))map.set(r.day_id,{weekday:Number(r.weekday),sequence:Number(r.sequence_index||0),title:r.title||'Training',exercises:[]});
+    if(r.exercise_uuid)map.get(r.day_id).exercises.push({
+      id:r.legacy_key||r.exercise_uuid,name:r.exercise_name,exerciseUuid:r.exercise_uuid,
+      ...(r.prescription&&typeof r.prescription==='object'?r.prescription:{}),note:r.coach_notes||''
     });
-  } catch (err) {
-    try { await client.query('ROLLBACK'); } catch {}
-    throw err;
-  } finally {
-    client.release();
   }
+  return json(res,200,{program:head,days:[...map.values()]});
 }
 
 const routes = new Map([
-  ['GET /profile-plan/health', async (_req,res) => json(res,200,{ ok:true, service:'varangym-profile-plan' })],
+  ['GET /profile-plan/health', async (_req,res)=>json(res,200,{ok:true,service:'varangym-profile-plan'})],
   ['GET /profile-plan/preview', preview],
-  ['POST /profile-plan/publish', publish]
+  ['GET /profile-plan/client-program', clientProgram],
+  ['POST /profile-plan/publish', publish],
+  ['POST /profile-plan/publish-custom', publishCustom]
 ]);
-
 function originAllowed(req) {
   if (req.method === 'GET' || req.method === 'HEAD' || req.method === 'OPTIONS') return true;
   const origin = String(req.headers.origin || '');
   return !origin || !APP_ORIGIN || origin === APP_ORIGIN;
 }
-
 await query('SELECT 1');
 console.log('[varangym-profile-plan] database ready');
-const server = http.createServer(async (req,res) => {
-  if (!originAllowed(req)) return json(res,403,{ error:'cross-origin request refused' });
-  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
-  let url;
-  try { url = new URL(req.url,'http://varangym.local'); } catch { return json(res,400,{ error:'bad request' }); }
-  const handler = routes.get(`${req.method} ${url.pathname}`);
-  if (!handler) return json(res,404,{ error:'not found' });
-  try { await handler(req,res,url); }
-  catch (err) {
-    const status = statusOf(err);
-    console.error('[profile-plan-http]', req.method, url.pathname, err?.stack || err);
-    if (!res.headersSent) json(res,status,{ error: status===500 ? 'server error' : err.message });
+const server=http.createServer(async(req,res)=>{
+  if(!originAllowed(req))return json(res,403,{error:'cross-origin request refused'});
+  if(req.method==='OPTIONS'){res.writeHead(204);return res.end();}
+  let url;try{url=new URL(req.url,'http://varangym.local');}catch{return json(res,400,{error:'bad request'});}
+  const handler=routes.get(`${req.method} ${url.pathname}`);
+  if(!handler)return json(res,404,{error:'not found'});
+  try{await handler(req,res,url);}catch(err){
+    const status=statusOf(err);console.error('[profile-plan-http]',req.method,url.pathname,err?.stack||err);
+    if(!res.headersSent)json(res,status,{error:status===500?'server error':err.message});
   }
 });
-server.listen(PORT,'0.0.0.0',() => console.log(`[varangym-profile-plan] listening on :${PORT}`));
-for (const sig of ['SIGTERM','SIGINT']) process.on(sig,()=>server.close(()=>process.exit(0)));
+server.listen(PORT,'0.0.0.0',()=>console.log(`[varangym-profile-plan] listening on :${PORT}`));
+for(const sig of ['SIGTERM','SIGINT'])process.on(sig,()=>server.close(()=>process.exit(0)));
