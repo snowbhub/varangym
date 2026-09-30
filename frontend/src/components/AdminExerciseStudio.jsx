@@ -14,6 +14,7 @@ import PlanManagerPro from './PlanManagerPro.jsx'
 const list = v => Array.isArray(v) ? v : v ? [v] : []
 const uniq = arr => [...new Set(arr.filter(Boolean))].sort((a,b)=>String(a).localeCompare(String(b)))
 const generatedName = (ex,lang) => lang==='uk' ? ukExerciseName(ex.n||'') : lang==='ru' ? ruExerciseName(ex.n||'') : (ex.n||ex.id)
+const adminEdited=o=>o?.metadata?.adminOverride===true||o?.metadata?.adminOverride==='true'
 const genderOf = ex => {
   const n=String(ex?.n||'').toLowerCase()
   if(n.includes('(female)')||n.includes(' female ')) return 'female'
@@ -31,8 +32,17 @@ const previewExercise=(selected,draft,body)=>({
   img:mediaValue(draft,body,'image')||selected.img,
   gif:mediaValue(draft,body,'gif')||selected.gif,
 })
+const externalMedia=value=>/^(?:https?:|data:|blob:)/i.test(String(value||''))
+const cleanMediaPath=value=>String(value||'').replace(/^\/+/, '').replace(/^(?:(?:img|images|gif|gifs|video|videos)\/)+/i,'')
+const previewMediaUrl=(ex,key,builder)=>{
+  const raw=ex?.[key]
+  if(!raw)return''
+  if(externalMedia(raw))return String(raw)
+  const cleaned=cleanMediaPath(raw)
+  return cleaned?builder({...ex,[key]:cleaned}):''
+}
 const qualityOf=(ex,o,locale)=>{
-  if(o?.translations?.[locale]?.name)return 'manual'
+  if(adminEdited(o)&&o?.translations?.[locale]?.name)return 'manual'
   if(locale==='uk'||locale==='ru')return popularExerciseName(ex.n||'',locale)?'curated':'auto'
   return 'source'
 }
@@ -91,7 +101,9 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
       if(!needle)return true
       const names=[
         ex.n,ukExerciseName(ex.n||''),ruExerciseName(ex.n||''),
-        o?.translations?.uk?.name,o?.translations?.ru?.name,o?.translations?.en?.name,
+        adminEdited(o)?o?.translations?.uk?.name:null,
+        adminEdited(o)?o?.translations?.ru?.name:null,
+        adminEdited(o)?o?.translations?.en?.name:null,
         ex.bp,ex.eq,ex.tg,...exMuscles
       ].filter(Boolean).join(' ').toLowerCase()
       return names.includes(needle)
@@ -103,6 +115,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
     setEditLang(locale)
     setPreviewBody(genderOf(ex)==='female'?'female':'male')
     const o=overrides.get(ex.id)
+    const manual=adminEdited(o)
     let ruSteps=[]
     try{
       const pack=(await import('../instr/ru.js')).default||{}
@@ -110,9 +123,9 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
     }catch{}
     const ukSteps=ruSteps.length ? (ukrainianizeInstructions({[ex.id]:ruSteps})?.[ex.id]||[]) : []
     const baseTr={
-      uk:{name:o?.translations?.uk?.name||ukExerciseName(ex.n||''),description:o?.translations?.uk?.description||'',instructions:cleanLines(o?.translations?.uk?.instructions?.length?o.translations.uk.instructions:(ukSteps.length?ukSteps:ex.st))},
-      ru:{name:o?.translations?.ru?.name||ruExerciseName(ex.n||''),description:o?.translations?.ru?.description||'',instructions:cleanLines(o?.translations?.ru?.instructions?.length?o.translations.ru.instructions:(ruSteps.length?ruSteps:ex.st))},
-      en:{name:o?.translations?.en?.name||ex.n||'',description:o?.translations?.en?.description||ex.desc||'',instructions:cleanLines(o?.translations?.en?.instructions?.length?o.translations.en.instructions:ex.st)}
+      uk:{name:manual&&o?.translations?.uk?.name?o.translations.uk.name:ukExerciseName(ex.n||''),description:o?.translations?.uk?.description||'',instructions:cleanLines(o?.translations?.uk?.instructions?.length?o.translations.uk.instructions:(ukSteps.length?ukSteps:ex.st))},
+      ru:{name:manual&&o?.translations?.ru?.name?o.translations.ru.name:ruExerciseName(ex.n||''),description:o?.translations?.ru?.description||'',instructions:cleanLines(o?.translations?.ru?.instructions?.length?o.translations.ru.instructions:(ruSteps.length?ruSteps:ex.st))},
+      en:{name:manual&&o?.translations?.en?.name?o.translations.en.name:(ex.n||''),description:o?.translations?.en?.description||ex.desc||'',instructions:cleanLines(o?.translations?.en?.instructions?.length?o.translations.en.instructions:ex.st)}
     }
     setDraft({
       active:o?.active!==false,
@@ -121,12 +134,12 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
       primaryMuscle:o?.primary_muscle_key??ex.tg??'',
       bodyPart:o?.metadata?.bodyPart??ex.bp??'',
       gender:o?.metadata?.gender||genderOf(ex),
-      image:o?.metadata?.image||'',
-      gif:o?.metadata?.gif||'',
-      imageMale:o?.metadata?.imageMale||'',
-      gifMale:o?.metadata?.gifMale||'',
-      imageFemale:o?.metadata?.imageFemale||'',
-      gifFemale:o?.metadata?.gifFemale||'',
+      image:manual?(o?.metadata?.image||''):'',
+      gif:manual?(o?.metadata?.gif||''):'',
+      imageMale:manual?(o?.metadata?.imageMale||''):'',
+      gifMale:manual?(o?.metadata?.gifMale||''):'',
+      imageFemale:manual?(o?.metadata?.imageFemale||''):'',
+      gifFemale:manual?(o?.metadata?.gifFemale||''):'',
       secondaryMuscles:list(o?.metadata?.secondaryMuscles?.length?o.metadata.secondaryMuscles:ex.sm),
       translations:baseTr
     })
@@ -173,6 +186,8 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
     const currentGif=mediaValue(draft,previewBody,'gif')
     const currentImg=mediaValue(draft,previewBody,'image')
     const selectedQuality=qualityOf(selected,overrides.get(selected.id),editLang)
+    const gifPreview=previewMediaUrl(shownEx,'gif',gifSrc)
+    const imgPreview=previewMediaUrl(shownEx,'img',imgSrc)
     return <>
       <Button size="sm" onClick={()=>{setSelected(null);setDraft(null)}}>← Вправи</Button>
       <div className="card" style={{marginTop:12}}>
@@ -223,7 +238,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
       <div className="card">
         <div className="row between"><div><div className="lbl2">Медіа</div><div className="ss">Окремі GIF/зображення для чоловічого та жіночого профілю. Загальний URL працює як fallback.</div></div><Segmented value={previewBody} onChange={setPreviewBody} options={[{value:'male',label:'♂'},{value:'female',label:'♀'}]}/></div>
         <div style={{margin:'12px 0',borderRadius:14,overflow:'hidden',background:'var(--surface-2)',minHeight:160,display:'grid',placeItems:'center'}}>
-          {shownEx.gif?<img key={`${previewBody}:${shownEx.gif}`} src={gifSrc(shownEx)} alt="GIF preview" style={{display:'block',width:'100%',maxHeight:320,objectFit:'contain'}} onError={e=>{e.currentTarget.style.display='none'}}/>:shownEx.img?<img key={`${previewBody}:${shownEx.img}`} src={imgSrc(shownEx)} alt="Preview" style={{display:'block',width:'100%',maxHeight:320,objectFit:'contain'}}/>:<span className="small dim">Медіа відсутнє</span>}
+          {gifPreview?<img key={`${previewBody}:${gifPreview}`} src={gifPreview} alt="GIF preview" style={{display:'block',width:'100%',maxHeight:320,objectFit:'contain'}} onError={e=>{e.currentTarget.style.display='none'}}/>:imgPreview?<img key={`${previewBody}:${imgPreview}`} src={imgPreview} alt="Preview" style={{display:'block',width:'100%',maxHeight:320,objectFit:'contain'}} onError={e=>{e.currentTarget.style.display='none'}}/>:<span className="small dim">Медіа відсутнє</span>}
         </div>
         <div className="small dim" style={{marginBottom:10}}>Preview {previewBody==='female'?'жіночого':'чоловічого'} профілю · {currentGif||currentImg?'admin override':'вихідне медіа каталогу'}</div>
         <div style={{display:'grid',gap:9}}>
@@ -264,7 +279,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
     <Section title={`Вправи · ${rows.length} з ${CATALOGUE.length}`}>
       {rows.slice(0,shown).map(ex=>{
         const o=overrides.get(ex.id)
-        const title=o?.translations?.[locale]?.name||generatedName(ex,locale)
+        const title=adminEdited(o)&&o?.translations?.[locale]?.name?o.translations[locale].name:generatedName(ex,locale)
         const g=o?.metadata?.gender||genderOf(ex)
         const ql=qualityOf(ex,o,locale)
         return <Row key={ex.id} title={title} subtitle={`${ex.bp||'—'} · ${ex.eq||'—'} · ${ex.tg||'—'} · ${g} · ${qualityLabel(ql)}${o?.active===false?' · прихована':''}`} accessory="chevron" onClick={()=>openExercise(ex)}>
