@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { MOBILE } from './lib/mobile.js'
 import './index.css'
+import './varangym-polish.css'
 
 // VARANGYM defaults new browser installs to Ukrainian. Existing local profiles keep the
 // language they explicitly selected, and signed-in profiles are subsequently restored from
