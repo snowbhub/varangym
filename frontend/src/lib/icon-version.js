@@ -1,0 +1,1 @@
+export const VARANGYM_ICON_VERSION = 5
