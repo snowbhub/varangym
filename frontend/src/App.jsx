@@ -17,7 +17,6 @@ import { MOBILE } from './lib/mobile.js'
 import { startFlow } from './sheets.jsx'
 import TabBar from './components/TabBar.jsx'
 import SettingsRoleAccess from './components/SettingsRoleAccess.jsx'
-import AdminPlanTools from './components/AdminPlanTools.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
 import Toast from './components/Toast.jsx'
@@ -43,7 +42,6 @@ import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
 
 const scrollPositions = new Map()
-
 bindUI(useUI)
 
 const resolveTheme = theme => theme === 'light' || theme === 'dark'
@@ -131,7 +129,7 @@ function Shell() {
               <Route path="/settings" element={<><Settings />{user && <SettingsRoleAccess />}</>} />
               <Route path="/trainer" element={<RoleConsole mode="trainer" />} />
               <Route path="/business" element={<RoleConsole mode="business" />} />
-              <Route path="/admin" element={<><RoleConsole mode="admin" /><AdminPlanTools /></>} />
+              <Route path="/admin" element={<RoleConsole mode="admin" />} />
               <Route path="/admin/accounts" element={<Admin />} />
               <Route path="/coach" element={<CoachChat />} />
               <Route path="/coach/intake" element={<CoachIntake />} />
