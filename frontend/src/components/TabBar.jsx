@@ -14,16 +14,19 @@ export default function TabBar({ onStart }) {
   const isGuest = useStore(s => s.isGuest())
   const parts = loc.pathname.split('/')
   const cur = parts[1] || 'home'
-  const pathRole = ['trainer','business','admin'].includes(cur) ? cur : null
+  const legacyPathRole = ['trainer','business','admin'].includes(cur) ? cur : null
 
   if (!user && !isGuest) return null
   const storedRole = getRoleMode()
-  const carriesMode = ['home','settings','plan','muscles'].includes(cur)
-  const roleMode = pathRole || (carriesMode ? storedRole : null)
-  const roleView = pathRole
+  const carriesMode = ['home','settings','plan','muscles','library'].includes(cur)
+  const roleMode = legacyPathRole || (carriesMode ? storedRole : null)
+  const roleView = legacyPathRole
     ? (parts[2] === 'exercises' ? 'exercises' : viewOf(loc.search))
     : roleMode
-      ? cur === 'home' ? 'home' : cur === 'plan' ? 'dashboard' : cur === 'muscles' ? 'exercises' : null
+      ? cur === 'home' ? viewOf(loc.search)
+        : cur === 'plan' ? 'dashboard'
+          : (cur === 'muscles' || cur === 'library') ? 'exercises'
+            : null
       : null
 
   if (roleMode) {
