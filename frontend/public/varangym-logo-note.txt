@@ -1,0 +1,1 @@
+VARANGYM icon source is frontend/resources/icon.svg. The generated 180px raster is kept in frontend/public/varangym-180.png for Apple/PWA compatibility.
