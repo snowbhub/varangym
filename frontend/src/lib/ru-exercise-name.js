@@ -1,10 +1,16 @@
 import { popularExerciseName } from './exercise-popular-name.js'
 
-// Russian exercise-name normalizer for the canonical English catalogue.
-// The catalogue contains more than a thousand compositional names. Common multi-word movements
-// are translated first, then equipment/body-position vocabulary, and the rare unknown proper
-// token is transliterated so the Russian UI never leaks raw English exercise names.
+// Russian exercise-name normalizer for the canonical English catalogue. Popular gym names win
+// first; compositional fallbacks are worded the way people normally call movements in a gym.
 const PHRASES = [
+  ['assisted prone lying quadriceps stretch','растяжка квадрицепса лёжа на животе с поддержкой'],
+  ['assisted lying quadriceps stretch','растяжка квадрицепса лёжа с поддержкой'],
+  ['assisted lying leg curl','сгибание ног лёжа с поддержкой'],
+  ['assisted seated pectoralis major stretch','растяжка грудных мышц сидя с поддержкой'],
+  ['assisted standing pull up','подтягивание стоя с поддержкой'],
+  ['assisted pull up','подтягивание с поддержкой'],
+  ['assisted chin up','подтягивание обратным хватом с поддержкой'],
+  ['assisted dip','отжимание на брусьях с поддержкой'],
   ['romanian deadlift','румынская становая тяга'],['stiff leg deadlift','становая тяга на прямых ногах'],
   ['straight leg deadlift','становая тяга на прямых ногах'],['sumo deadlift','становая тяга сумо'],
   ['bench press','жим лёжа'],['chest press','жим от груди'],['shoulder press','жим над головой'],
@@ -15,6 +21,9 @@ const PHRASES = [
   ['straight arm pulldown','тяга верхнего блока прямыми руками'],['triceps pushdown','разгибание рук на блоке'],
   ['face pull','тяга к лицу'],['upright row','тяга к подбородку'],['bent over row','тяга в наклоне'],
   ['seated row','тяга сидя'],['t bar row','тяга Т-грифа'],['one arm row','тяга одной рукой'],['single arm row','тяга одной рукой'],
+  ['single arm','одной рукой'],['one arm','одной рукой'],['upper arm','плечо'],
+  ['arm curl','сгибание рук'],['arm curls','сгибание рук'],['arm extension','разгибание рук'],['arm extensions','разгибание рук'],
+  ['arm raise','подъём рук'],['arm raises','подъём рук'],['arm stretch','растяжка рук'],['arm swing','махи руками'],['arm rotation','вращение рук'],
   ['lateral raise','подъём рук в стороны'],['front raise','подъём рук перед собой'],
   ['rear delt fly','разведение на заднюю дельту'],['reverse fly','обратное разведение'],['chest fly','разведение на грудь'],
   ['pec deck','сведение рук в тренажёре'],['biceps curl','сгибание рук на бицепс'],['hammer curl','молотковое сгибание рук'],
@@ -28,8 +37,8 @@ const PHRASES = [
   ['mountain climber','альпинист'],['jumping jack','прыжки ноги-руки'],['battle rope','работа с канатами'],
   ['farmer walk','фермерская прогулка'],["farmer's walk",'фермерская прогулка'],['good morning','наклоны «доброе утро»'],
   ['step up','зашагивание'],['box jump','прыжок на тумбу'],['jump squat','приседание с прыжком'],
-  ['split squat','раздельное приседание'],['bulgarian split squat','болгарское раздельное приседание'],
-  ['goblet squat','кубковое приседание'],['hack squat','гак-приседание'],['front squat','фронтальное приседание'],
+  ['split squat','раздельное приседание'],['bulgarian split squat','болгарские выпады'],
+  ['goblet squat','приседание с гантелью у груди'],['hack squat','гак-приседание'],['front squat','фронтальное приседание'],
   ['back squat','приседание со штангой на спине'],['overhead squat','приседание со снарядом над головой'],
   ['walking lunge','выпады в ходьбе'],['reverse lunge','обратные выпады'],['side lunge','боковые выпады'],['lunge jump','выпады с прыжком'],
   ['wrist curl','сгибание запястья'],['wrist extension','разгибание запястья'],['neck flexion','сгибание шеи'],['neck extension','разгибание шеи'],
@@ -57,7 +66,7 @@ const WORDS = {
   abs:'пресс',abdominal:'пресс',oblique:'косые мышцы',waist:'талия',core:'кор',quad:'квадрицепс',quads:'квадрицепс',quadriceps:'квадрицепс',
   hamstring:'задняя поверхность бедра',hamstrings:'задняя поверхность бедра',glute:'ягодицы',glutes:'ягодицы',calf:'икры',calves:'икры',thigh:'бедро',thighs:'бёдра',
   hip:'тазобедренный',hips:'тазобедренные',adductor:'приводящие мышцы',abductor:'отводящие мышцы',ankle:'голеностоп',knee:'колено',knees:'колени',leg:'нога',legs:'ноги',
-  arm:'рука',arms:'руки',hand:'кисть',hands:'кисти',foot:'стопа',feet:'стопы',head:'голова',scapula:'лопатка',scapular:'лопаточный',upper:'верхний',lower:'нижний',inner:'внутренний',outer:'внешний',middle:'средний',
+  arm:'руки',arms:'руки',hand:'кисть',hands:'кисти',foot:'стопа',feet:'стопы',head:'голова',scapula:'лопатка',scapular:'лопаточный',upper:'верхний',lower:'нижний',inner:'внутренний',outer:'внешний',middle:'средний',
   power:'силовой',explosive:'взрывной',dynamic:'динамический',static:'статический',iso:'изометрический',isometric:'изометрический',
   with:'с',without:'без',and:'и',to:'к',from:'от',on:'на',off:'от',up:'вверх',down:'вниз',over:'над',under:'под',across:'через',around:'вокруг',against:'против',using:'с использованием',
   floor:'полу',wall:'стены',rack:'стойке',parallel:'параллельный',hanging:'в висе',mobility:'мобильность',circles:'круги',circle:'круг',touch:'касание',touches:'касания',
@@ -70,27 +79,20 @@ const WORDS = {
 function transliterate(word) {
   let s=word.toLowerCase()
   const pairs=[['tion','шн'],['sion','жн'],['tch','ч'],['sch','ш'],['sh','ш'],['ch','ч'],['th','т'],['ph','ф'],['gh','г'],['ck','к'],['qu','кв'],['wh','в'],['ee','и'],['oo','у'],['ou','ау'],['ow','оу'],['ai','эй'],['ay','эй'],['ea','и']]
-  for(const [a,b] of pairs) s=s.replaceAll(a,b)
+  for(const [a,b] of pairs)s=s.replaceAll(a,b)
   const map={a:'а',b:'б',c:'к',d:'д',e:'е',f:'ф',g:'г',h:'х',i:'и',j:'дж',k:'к',l:'л',m:'м',n:'н',o:'о',p:'п',q:'к',r:'р',s:'с',t:'т',u:'у',v:'в',w:'в',x:'кс',y:'й',z:'з'}
   return [...s].map(c=>map[c]??c).join('')
 }
-
 function preserveCase(source,translated){return source&&source[0]===source[0].toUpperCase()?translated.charAt(0).toUpperCase()+translated.slice(1):translated}
 
 export function ruExerciseName(name='') {
-  if(!name) return ''
+  if(!name)return''
   const popular=popularExerciseName(name,'ru')
   if(popular)return popular
   const source=String(name).replace(/[–—]/g,'-').replace(/\s+/g,' ').trim()
   let work=source.toLowerCase().replace(/-/g,' ')
-  for(const [en,ru] of [...PHRASES].sort((a,b)=>b[0].length-a[0].length)) {
-    work=work.replace(new RegExp(`\\b${en.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'g'),`§${ru}§`)
-  }
+  for(const [en,ru] of [...PHRASES].sort((a,b)=>b[0].length-a[0].length))work=work.replace(new RegExp(`\\b${en.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')}\\b`,'g'),`§${ru}§`)
   const parts=work.split(/(§[^§]+§|[^a-z0-9°]+|\d+(?:\.\d+)?)/i).filter(Boolean)
-  const translated=parts.map(part=>{
-    if(part.startsWith('§')&&part.endsWith('§')) return part.slice(1,-1)
-    if(/^[^a-z]+$/i.test(part)||/^\d/.test(part)) return part
-    const low=part.toLowerCase(); return WORDS[low]||transliterate(part)
-  }).join('').replace(/\s+/g,' ').replace(/\s+([,;:)])/g,'$1').replace(/([(])\s+/g,'$1').trim()
+  const translated=parts.map(part=>{if(part.startsWith('§')&&part.endsWith('§'))return part.slice(1,-1);if(/^[^a-z]+$/i.test(part)||/^\d/.test(part))return part;const low=part.toLowerCase();return WORDS[low]||transliterate(part)}).join('').replace(/\s+/g,' ').replace(/\s+([,;:)])/g,'$1').replace(/([(])\s+/g,'$1').trim()
   return preserveCase(source,translated)
 }
