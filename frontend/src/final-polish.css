@@ -1,0 +1,97 @@
+/* Final VARANGYM mobile polish: compact entry, intentional card scrolling and premium iOS glass. */
+
+/* iPhone/iPad glass: keep the tab bar readable while allowing the app to visually continue below it. */
+@supports (-webkit-touch-callout:none){
+  #tabbar{
+    background:color-mix(in srgb,var(--bg-el) 62%,transparent)!important;
+    -webkit-backdrop-filter:saturate(210%) blur(28px)!important;
+    backdrop-filter:saturate(210%) blur(28px)!important;
+    border-top:1px solid color-mix(in srgb,#fff 11%,transparent)!important;
+    box-shadow:0 -16px 44px -30px rgba(0,0,0,.95),inset 0 1px 0 color-mix(in srgb,#fff 7%,transparent)!important;
+  }
+  :root[data-theme="light"] #tabbar{background:color-mix(in srgb,#f7f7fa 62%,transparent)!important}
+}
+
+/* Ordinary users get one clean account/subscription block; role holders keep the mode switcher. */
+.vg-unified-settings>.sect:first-of-type{margin-top:4px}
+.vg-unified-settings>.sect:first-of-type .row{min-height:66px}
+.vg-unified-settings>.sect:first-of-type .row:last-child{background:linear-gradient(90deg,color-mix(in srgb,var(--acc) 10%,transparent),transparent)}
+
+/* Public entry must fit on a phone without turning into a long pricing landing page. */
+.vg-login{min-height:100svh!important;justify-content:flex-start!important;padding-top:max(18px,var(--sat))!important;padding-bottom:24px!important}
+.vg-login-plans{margin-top:18px!important;gap:8px!important}
+.vg-login-plan{min-width:0}
+
+@media (max-width:600px){
+  .vg-login-plans-head{padding-bottom:2px!important}
+  .vg-login-plan{padding:11px 12px!important;border-radius:16px!important;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px 10px;align-items:center}
+  .vg-login-plan-head{grid-column:1/-1;align-items:center!important}
+  .vg-login-plan-head strong{font-size:17px!important}
+  .vg-login-plan-head small{font-size:11px!important}
+  .vg-login-prices span{padding:4px 6px!important;font-size:10px!important}
+  .vg-login-features{grid-column:1/2;margin:2px 0!important;gap:3px!important}
+  .vg-login-features span{font-size:10.5px!important}
+  .vg-login-actions{grid-column:2/3;grid-row:2;margin:0!important;display:grid!important;gap:5px!important;align-self:stretch}
+  .vg-login-actions .btn{min-width:98px!important;padding-left:9px!important;padding-right:9px!important;font-size:11px!important}
+  .vg-login-plan .input{grid-column:1/-1;margin-top:2px!important}
+  .vg-login .vg-billing-note{font-size:10.5px!important;padding:8px 10px!important;margin-top:4px!important}
+}
+
+@media (max-height:850px) and (max-width:600px){
+  .vg-login>div:first-child svg{width:72px!important;height:72px!important}
+  .vg-login>h1{font-size:29px!important;margin-top:2px!important}
+  .vg-login>h1+div{margin-bottom:3px!important}
+  .vg-login>.muted{margin-bottom:14px!important}
+  .vg-login-plans{margin-top:12px!important}
+  .vg-login-plans-head span{display:none}
+  .vg-login-features{display:none!important}
+  .vg-login-plan{grid-template-columns:minmax(0,1fr) auto!important;padding:9px 11px!important}
+  .vg-login-actions{grid-row:1;grid-column:2;margin-left:4px!important}
+  .vg-login-actions .btn:not(:first-child){display:none!important}
+  .vg-login-prices{max-width:145px}
+  .vg-login>.dim.small:last-child{margin-top:10px!important;font-size:10px!important;line-height:1.3!important}
+}
+
+/* On the dedicated membership page, multiple price points are intentional horizontal snap cards. */
+@media (max-width:620px){
+  .vg-plan-grid{
+    display:flex!important;
+    gap:10px!important;
+    overflow-x:auto!important;
+    overflow-y:hidden!important;
+    scroll-snap-type:x mandatory;
+    overscroll-behavior-x:contain;
+    scrollbar-width:none;
+    padding:2px 2px 8px;
+    margin:0 -2px;
+  }
+  .vg-plan-grid::-webkit-scrollbar{display:none}
+  .vg-plan-grid>.vg-plan-card{flex:0 0 min(88%,340px);scroll-snap-align:start;scroll-snap-stop:always}
+  .vg-plan-section-head{align-items:center!important}
+  .vg-plan-section-head:has(+ .vg-plan-grid)::after{content:'свайп →';font-size:10px;color:var(--label-3);white-space:nowrap}
+}
+
+/* Geo statistics are one-column on phones and bounded inside the card instead of creating a clipped
+   second column or an endlessly tall admin page. */
+.vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow){grid-template-columns:1fr!important;gap:10px!important}
+.vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow)>.card{
+  width:100%!important;max-width:100%!important;max-height:330px!important;
+  overflow-x:hidden!important;overflow-y:auto!important;overscroll-behavior:contain;
+  scrollbar-width:thin;
+}
+.vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow)>.card .mrow{padding-right:2px}
+
+/* KPI tiles: clearer hierarchy and no bare number columns on narrow phones. */
+.vg-role-mode-root .stat{position:relative!important}
+.vg-role-mode-root .stat:before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:color-mix(in srgb,var(--acc) 72%,transparent);opacity:.75}
+.vg-role-mode-root .stat .n{font-variant-numeric:tabular-nums}
+@media (max-width:380px){
+  .vg-role-mode-root .grid2{grid-template-columns:1fr 1fr!important}
+  .vg-role-mode-root .stat{min-height:92px!important}
+  .vg-role-mode-root .stat .n{font-size:21px!important}
+  .vg-role-mode-root .stat .l{font-size:11px!important}
+}
+
+/* Never allow role cards or labels to push the whole app sideways. */
+.vg-role-mode-root,.vg-role-console-body,.vg-role-console-body>.narrow,.vg-subscription-manager,.vg-login{overflow-x:clip!important}
+.vg-role-mode-root .card,.vg-plan-card,.vg-login-plan{overflow-wrap:anywhere}
