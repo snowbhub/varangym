@@ -3,7 +3,7 @@ import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, effectiveRoutines } from '../lib/history.js'
 import { todayISO } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
-import { roleRoute, viewOf } from '../lib/role-mode.js'
+import { getRoleMode, roleRoute, viewOf } from '../lib/role-mode.js'
 import Icon from './Icon.jsx'
 
 export default function TabBar({ onStart }) {
@@ -16,8 +16,14 @@ export default function TabBar({ onStart }) {
   if (!user && !isGuest) return null
   const parts = loc.pathname.split('/')
   const cur = parts[1] || 'home'
-  const roleMode = ['trainer','business','admin'].includes(cur) ? cur : null
-  const roleView = parts[2] === 'exercises' ? 'exercises' : viewOf(loc.search)
+  const pathRole = ['trainer','business','admin'].includes(cur) ? cur : null
+  const carriedRole = !pathRole && ['plan','muscles'].includes(cur) ? getRoleMode() : null
+  const roleMode = pathRole || carriedRole
+  const roleView = pathRole
+    ? (parts[2] === 'exercises' ? 'exercises' : viewOf(loc.search))
+    : carriedRole
+      ? (cur === 'muscles' || carriedRole === 'admin' ? 'exercises' : 'dashboard')
+      : null
 
   if (roleMode) {
     const copy = roleMode === 'admin'
