@@ -14,9 +14,10 @@ export default function TabBar({ onStart }) {
   const isGuest = useStore(s => s.isGuest())
 
   if (!user && !isGuest) return null
-  const cur = loc.pathname.split('/')[1] || 'home'
+  const parts = loc.pathname.split('/')
+  const cur = parts[1] || 'home'
   const roleMode = ['trainer','business','admin'].includes(cur) ? cur : null
-  const roleView = viewOf(loc.search)
+  const roleView = parts[2] === 'exercises' ? 'exercises' : viewOf(loc.search)
 
   if (roleMode) {
     const copy = roleMode === 'admin'
