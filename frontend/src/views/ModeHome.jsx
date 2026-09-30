@@ -20,6 +20,7 @@ const ROLE_NAV={
   business:[
     {view:'business-trainers',icon:'personCircle',title:'Тренери'},
     {view:'business-clients',icon:'personCircle',title:'Клієнти'},
+    {view:'business-codes',icon:'key',title:'Коди'},
     {view:'business-plans',icon:'calendar',title:'Плани'},
     {view:'business-payments',icon:'creditCard',title:'Оплата'},
     {view:'stats',icon:'chartLine',title:'Статистика'},
