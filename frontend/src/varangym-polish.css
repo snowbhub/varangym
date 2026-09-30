@@ -34,10 +34,10 @@
 .vg-role-mode-root .mrow{min-width:0}
 .vg-role-mode-root .mrow .nm{min-width:0!important;white-space:normal!important;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.2}
 
-/* Countries/regions must never create sideways scrolling on iPhone. */
+/* Countries/regions: one full-width card per block. No sideways or nested scrollbar on iPhone. */
 .vg-mode-admin.vg-view-stats .grid2:has(.mrow){grid-template-columns:1fr!important}
-.vg-mode-admin.vg-view-stats .grid2:has(.mrow)>.card{width:100%;max-height:310px;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
-.vg-mode-admin.vg-view-stats .grid2:has(.mrow)>.card::-webkit-scrollbar{width:0;height:0}
+.vg-mode-admin.vg-view-stats .grid2:has(.mrow)>.card{width:100%;max-height:none!important;overflow:visible!important}
+.vg-mode-admin.vg-view-stats .grid2:has(.mrow) .mrow .bar{width:min(34vw,150px)}
 
 /* Stronger information hierarchy for the role shell quick navigation. */
 .vg-admin-quicknav{gap:10px!important}
@@ -68,8 +68,15 @@
 .vg-plan-compare{display:grid;grid-template-columns:1fr;gap:8px}.vg-compare-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:10px 12px;border-radius:13px;background:var(--surface);border:1px solid color-mix(in srgb,var(--label) 7%,transparent)}.vg-compare-row span:last-child{color:var(--label-2);text-align:right}
 .vg-billing-note{margin-top:12px;padding:11px 12px;border-radius:13px;background:color-mix(in srgb,var(--orange) 10%,transparent);color:var(--label-2);font-size:12px;line-height:1.4}
 
-/* Settings: a single stable commercial entry, role switches only for roles the account owns. */
-.vg-subscription-entry{margin-top:2px}
+/* Public pricing: concise enough for mobile, complete enough to sell the product. */
+.vg-login{padding-bottom:40px}
+.vg-login-plans{margin-top:28px;text-align:left;display:grid;gap:10px}
+.vg-login-plans-head{display:grid;gap:3px;padding:0 3px 4px}.vg-login-plans-head b{font-size:21px;letter-spacing:-.025em}.vg-login-plans-head span{font-size:12px;color:var(--label-3)}
+.vg-login-plan{padding:15px;border-radius:19px;background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 96%,var(--acc) 4%),var(--surface));border:1px solid color-mix(in srgb,var(--label) 9%,transparent)}
+.vg-login-plan-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.vg-login-plan-head strong{font-size:20px}.vg-login-plan-head small{display:block;color:var(--label-3);margin-top:2px}.vg-login-prices{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px}.vg-login-prices span{font-size:11px;font-weight:700;color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,transparent);padding:5px 7px;border-radius:999px}
+.vg-login-features{display:grid;grid-template-columns:1fr;gap:6px;margin:12px 0}.vg-login-features span{font-size:12px;color:var(--label-2);display:flex;align-items:center;gap:6px}.vg-login-features svg{width:14px;height:14px;color:var(--acc)}
+.vg-login-actions{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}.vg-login-actions .btn{flex:1;min-width:120px}
+.vg-login-plan .input{margin-top:8px}
 
 /* General guardrails against accidental horizontal layout leaks. */
 #app,.narrow,.card,.sect,.list,.vg-role-mode-root,.vg-subscription-page{max-width:100%;min-width:0}
@@ -86,4 +93,7 @@
   .vg-role-mode-root .stat .n{font-size:23px!important}
   .vg-subscription-hero{padding:17px!important}.vg-subscription-hero .vg-plan-title{font-size:27px}
   .vg-plan-card{padding:15px}.vg-plan-name{font-size:18px}.vg-plan-price b{font-size:22px}
+  .vg-plan-top{gap:8px}.vg-plan-audience{max-width:180px}
+  .vg-current-plan{grid-template-columns:1fr}.vg-current-plan .btn{width:100%}
+  .vg-login-plan{padding:13px}.vg-login-plan-head strong{font-size:18px}
 }
