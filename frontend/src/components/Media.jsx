@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { imgSrc, gifSrc } from '../lib/exercises.js'
 import { effectiveExercise } from '../lib/exercise-overrides-core.js'
 import { useStore } from '../store/useStore.js'
@@ -46,6 +46,21 @@ export function Thumb({ ex }) {
   const lang = useStore(s => s.S.lang || 'en')
   const body = useStore(s => s.S.body || 'male')
   const shown = effectiveExercise(ex, lang, body)
-  if (!shown?.img) return <div className="thumb thumb-x"><Icon name="dumbbell" /></div>
-  return <img className="thumb" loading="lazy" decoding="async" draggable={false} src={imgSrc(shown)} alt="" />
+  const [attempt, setAttempt] = useState(0)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    setAttempt(0)
+    setFailed(false)
+  }, [shown?.id, shown?.img])
+
+  if (!shown?.img || failed) return <div className="thumb thumb-x"><Icon name="dumbbell" /></div>
+  const base = imgSrc(shown)
+  const src = attempt ? `${base}${base.includes('?') ? '&' : '?'}retry=${attempt}` : base
+  const retry = () => {
+    if (attempt >= 2) { setFailed(true); return }
+    const next = attempt + 1
+    window.setTimeout(() => setAttempt(next), 300 * next)
+  }
+  return <img className="thumb" loading="lazy" fetchPriority="low" decoding="async" draggable={false} src={src} alt="" onError={retry} />
 }
