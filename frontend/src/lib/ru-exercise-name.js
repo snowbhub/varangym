@@ -1,3 +1,5 @@
+import { popularExerciseName } from './exercise-popular-name.js'
+
 // Russian exercise-name normalizer for the canonical English catalogue.
 // The catalogue contains more than a thousand compositional names. Common multi-word movements
 // are translated first, then equipment/body-position vocabulary, and the rare unknown proper
@@ -77,6 +79,8 @@ function preserveCase(source,translated){return source&&source[0]===source[0].to
 
 export function ruExerciseName(name='') {
   if(!name) return ''
+  const popular=popularExerciseName(name,'ru')
+  if(popular)return popular
   const source=String(name).replace(/[–—]/g,'-').replace(/\s+/g,' ').trim()
   let work=source.toLowerCase().replace(/-/g,' ')
   for(const [en,ru] of [...PHRASES].sort((a,b)=>b[0].length-a[0].length)) {
