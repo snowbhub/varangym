@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api.js'
 import { businessMemberships, loadPlatformIdentity, platformAccess, trainerMemberships } from '../lib/platform-role.js'
@@ -17,6 +18,7 @@ export default function SettingsRoleAccess(){
   const [billing,setBilling]=useState(null)
   const [plans,setPlans]=useState([])
   const [busy,setBusy]=useState('')
+  const [quickHost,setQuickHost]=useState(null)
 
   const load=()=>Promise.allSettled([loadPlatformIdentity(),api('/api/trial/status'),api('/api/billing/plans'),api('/api/billing/me')]).then(([me,st,pl,bi])=>{
     if(me.status==='fulfilled')setIdentity(me.value)
@@ -24,7 +26,7 @@ export default function SettingsRoleAccess(){
     if(pl.status==='fulfilled')setPlans(pl.value.plans||[])
     if(bi.status==='fulfilled')setBilling(bi.value)
   })
-  useEffect(()=>{let live=true;load().catch(()=>{});return()=>{live=false}},[])
+  useEffect(()=>{load().catch(()=>{})},[])
 
   const access=useMemo(()=>platformAccess(identity),[identity])
   const trainers=useMemo(()=>trainerMemberships(identity),[identity])
@@ -37,6 +39,35 @@ export default function SettingsRoleAccess(){
   const billingSub=current?.subject_type==='workspace'
     ? (billing?.workspaceSubscriptions||[]).find(x=>x.workspace_id===current.subject_id&&x.plan_code===current.plan_code) || (billing?.workspaceSubscriptions||[]).find(x=>x.workspace_id===current.subject_id)
     : (billing?.userSubscriptions||[]).find(x=>x.plan_code===current?.plan_code) || billing?.userSubscriptions?.[0]
+
+  // Settings is inherited from openGym. Instead of duplicating that large screen, mount the
+  // VARANGYM role shortcuts into its account group immediately after the signed-in name row.
+  // This keeps the buttons exactly where a user expects account-level mode switching to live.
+  useEffect(()=>{
+    if(!identity?.user?.display_name||!access.canManage)return
+    const find=()=>{
+      const name=identity.user.display_name.trim()
+      const rows=[...document.querySelectorAll('.sect .lrow')]
+      const accountRow=rows.find(r=>r.querySelector('.lrow-t')?.textContent?.trim()===name)
+      const body=accountRow?.closest('.sect-b')
+      if(!accountRow||!body)return false
+      const oldAdmin=[...body.children].find(el=>el!==accountRow&&/admin|адмін/i.test(el.querySelector?.('.lrow-t')?.textContent||''))
+      if(oldAdmin)oldAdmin.dataset.vgHidden='1',oldAdmin.style.display='none'
+      let host=body.querySelector(':scope > .vg-role-quick-host')
+      if(!host){host=document.createElement('div');host.className='vg-role-quick-host';accountRow.insertAdjacentElement('afterend',host)}
+      setQuickHost(host)
+      return true
+    }
+    if(find())return()=>{}
+    const id=setInterval(()=>{if(find())clearInterval(id)},80)
+    const stop=setTimeout(()=>clearInterval(id),2500)
+    return()=>{clearInterval(id);clearTimeout(stop)}
+  },[identity,access.canManage])
+
+  useEffect(()=>()=>{
+    document.querySelectorAll('[data-vg-hidden="1"]').forEach(el=>{el.style.display='';delete el.dataset.vgHidden})
+    document.querySelectorAll('.vg-role-quick-host').forEach(el=>el.remove())
+  },[])
 
   const enter=mode=>{setRoleMode(mode);nav(roleRoute(mode,'home'))}
   const checkout=async plan=>{
@@ -64,25 +95,28 @@ export default function SettingsRoleAccess(){
     finally{setBusy('')}
   }
 
-  return <div className="narrow" style={{paddingTop:0}}>
-    {access.canManage&&<Section title="Режими керування" footer="Звичайний VARANGYM залишається основним режимом. Тут відкривається окремий робочий інтерфейс для твоєї ролі.">
-      {access.platformAdmin&&<Row icon="wrench" iconTint="var(--acc)" title="Адмін-режим" subtitle="Уся платформа, фінанси, користувачі, вправи та workspaces" accessory="chevron" onClick={()=>enter('admin')}/>} 
-      {access.business&&<Row icon="personCircle" iconTint="var(--indigo)" title="Бізнес-режим" subtitle="Тренери, клієнти, план, аналітика та підписка організації" accessory="chevron" onClick={()=>enter('business')}/>} 
-      {access.trainer&&<Row icon="chartLine" iconTint="var(--blue)" title="Режим тренера" subtitle="Клієнти, програми, прогрес і коди привʼязки" accessory="chevron" onClick={()=>enter('trainer')}/>} 
-    </Section>}
+  const quick=access.canManage?<>
+    {access.platformAdmin&&<Row icon="wrench" iconTint="var(--acc)" title="Admin панель" subtitle="Платформа, фінанси, клієнти та вправи" accessory="chevron" onClick={()=>enter('admin')}/>} 
+    {access.business&&<Row icon="personCircle" iconTint="var(--indigo)" title="Business панель" subtitle="Організація, тренери, клієнти та аналітика" accessory="chevron" onClick={()=>enter('business')}/>} 
+    {access.trainer&&<Row icon="chartLine" iconTint="var(--blue)" title="Coach панель" subtitle="Клієнти, програми, прогрес і коди" accessory="chevron" onClick={()=>enter('trainer')}/>} 
+  </>:null
 
-    <Section title="Підписка">
-      {current?<>
-        <Row icon="key" iconTint="var(--acc)" title={current.plan_metadata?.label||current.plan_code||'VARANGYM'} subtitle={`${current.status}${current.status==='trialing'?` · пробний період до ${date(current.trial_ends_at)}`:current.current_period_end?` · до ${date(current.current_period_end)}`:''}`} value={billingSub?.cancel_at_period_end?'скасується':'активна'}/>
-        {current.status==='trialing'&&<Row icon="info" iconTint="var(--orange)" title="30-денний пробний період" subtitle="До завершення trial можна обрати платний тариф. Автоматичне списання без оформленої оплати не запускається."/>}
-        {billingSub?.status==='active'&&<Row icon="info" title="Керування поточною підпискою" subtitle={billingSub.cancel_at_period_end?`Доступ лишиться до ${date(billingSub.current_period_end)}.`:'Скасування не видаляє дані акаунта.'}>
-          <Button size="sm" disabled={!!busy} onClick={()=>changeCancel(!!billingSub.cancel_at_period_end)}>{busy?'…':billingSub.cancel_at_period_end?'Продовжити':'Скасувати'}</Button>
-        </Row>}
-        {billingSub?.status==='trialing'&&<Row icon="info" title="Завершити trial" subtitle="Дані не видаляються; платну підписку можна оформити пізніше."><Button size="sm" disabled={!!busy} onClick={()=>changeCancel(false)}>{busy?'…':'Завершити'}</Button></Row>}
-      </>:<Row icon="key" title="Підписка не знайдена" subtitle="Якщо акаунт щойно створений, онови сторінку."/>}
-      {eligiblePlans.map(p=><Row key={p.code} icon="key" iconTint={p.code===current?.plan_code?'var(--acc)':'var(--grey)'} title={p.metadata?.label||p.code} subtitle={`${p.billing_kind==='recurring'?'щомісячно':'назавжди'} · ${money(p.price_cents,p.currency)}`}>
-        {p.code!==current?.plan_code&&<Button size="sm" disabled={!!busy} onClick={()=>checkout(p)}>{busy===p.code?'…':'Обрати'}</Button>}
-      </Row>)}
-    </Section>
-  </div>
+  return <>
+    {quickHost&&quick?createPortal(quick,quickHost):null}
+    <div className="narrow" style={{paddingTop:0}}>
+      <Section title="Підписка">
+        {current?<>
+          <Row icon="key" iconTint="var(--acc)" title={current.plan_metadata?.label||current.plan_code||'VARANGYM'} subtitle={`${current.status}${current.status==='trialing'?` · пробний період до ${date(current.trial_ends_at)}`:current.current_period_end?` · до ${date(current.current_period_end)}`:''}`} value={billingSub?.cancel_at_period_end?'скасується':'активна'}/>
+          {current.status==='trialing'&&<Row icon="info" iconTint="var(--orange)" title="30-денний пробний період" subtitle="До завершення trial можна обрати платний тариф. Автоматичне списання без оформленої оплати не запускається."/>}
+          {billingSub?.status==='active'&&<Row icon="info" title="Керування поточною підпискою" subtitle={billingSub.cancel_at_period_end?`Доступ лишиться до ${date(billingSub.current_period_end)}.`:'Скасування не видаляє дані акаунта.'}>
+            <Button size="sm" disabled={!!busy} onClick={()=>changeCancel(!!billingSub.cancel_at_period_end)}>{busy?'…':billingSub.cancel_at_period_end?'Продовжити':'Скасувати'}</Button>
+          </Row>}
+          {billingSub?.status==='trialing'&&<Row icon="info" title="Завершити trial" subtitle="Дані не видаляються; платну підписку можна оформити пізніше."><Button size="sm" disabled={!!busy} onClick={()=>changeCancel(false)}>{busy?'…':'Завершити'}</Button></Row>}
+        </>:<Row icon="key" title="Підписка не знайдена" subtitle="Якщо акаунт щойно створений, онови сторінку."/>}
+        {eligiblePlans.map(p=><Row key={p.code} icon="key" iconTint={p.code===current?.plan_code?'var(--acc)':'var(--grey)'} title={p.metadata?.label||p.code} subtitle={`${p.billing_kind==='recurring'?'щомісячно':'назавжди'} · ${money(p.price_cents,p.currency)}`}>
+          {p.code!==current?.plan_code&&<Button size="sm" disabled={!!busy} onClick={()=>checkout(p)}>{busy===p.code?'…':'Обрати'}</Button>}
+        </Row>)}
+      </Section>
+    </div>
+  </>
 }
