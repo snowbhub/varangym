@@ -35,6 +35,7 @@ import History from './views/History.jsx'
 import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
 import UnifiedSettings from './views/UnifiedSettings.jsx'
+import Subscription from './views/Subscription.jsx'
 import RoleLibrary from './views/RoleLibrary.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
@@ -130,6 +131,7 @@ function Shell() {
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
               <Route path="/settings" element={<UnifiedSettings />} />
+              <Route path="/subscription" element={<Subscription />} />
               <Route path="/trainer/exercises" element={<RoleLibrary mode="trainer" />} />
               <Route path="/business/exercises" element={<RoleLibrary mode="business" />} />
               <Route path="/trainer" element={<RoleModeRoot mode="trainer" />} />
