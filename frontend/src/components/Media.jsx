@@ -22,12 +22,13 @@ function mediaUrl(ex, key, builder) {
   return builder({ ...ex, [key]: cleaned })
 }
 
-export default function Media({ ex, id, compact, minimizable }) {
+export default function Media({ ex, id, compact, minimizable, bodyOverride }) {
   const [playing, setPlaying] = useState(true)
   const [failed, setFailed] = useState(null)
   const gifSize = useStore(s => s.S.gifSize)
   const lang = useStore(s => s.S.lang || 'en')
-  const body = useStore(s => s.S.body || 'male')
+  const profileBody = useStore(s => s.S.body || 'male')
+  const body = bodyOverride === 'female' || bodyOverride === 'male' ? bodyOverride : profileBody
   const update = useStore(s => s.update)
   const shown = effectiveExercise(ex, lang, body)
   if (!shown?.gif) return null
@@ -60,9 +61,10 @@ export default function Media({ ex, id, compact, minimizable }) {
   )
 }
 
-export function Thumb({ ex }) {
+export function Thumb({ ex, bodyOverride }) {
   const lang = useStore(s => s.S.lang || 'en')
-  const body = useStore(s => s.S.body || 'male')
+  const profileBody = useStore(s => s.S.body || 'male')
+  const body = bodyOverride === 'female' || bodyOverride === 'male' ? bodyOverride : profileBody
   const shown = effectiveExercise(ex, lang, body)
   const [attempt, setAttempt] = useState(0)
   const [failed, setFailed] = useState(false)
@@ -70,7 +72,7 @@ export function Thumb({ ex }) {
   useEffect(() => {
     setAttempt(0)
     setFailed(false)
-  }, [shown?.id, shown?.img])
+  }, [shown?.id, shown?.img, body])
 
   const base = mediaUrl(shown, 'img', imgSrc)
   if (!base || failed) return <div className="thumb thumb-x"><Icon name="dumbbell" /></div>
