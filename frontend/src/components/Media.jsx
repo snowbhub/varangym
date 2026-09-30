@@ -10,8 +10,9 @@ export default function Media({ ex, id, compact, minimizable }) {
   const [failed, setFailed] = useState(null)
   const gifSize = useStore(s => s.S.gifSize)
   const lang = useStore(s => s.S.lang || 'en')
+  const body = useStore(s => s.S.body || 'male')
   const update = useStore(s => s.update)
-  const shown = effectiveExercise(ex, lang)
+  const shown = effectiveExercise(ex, lang, body)
   if (!shown?.gif) return null
   if (minimizable && gifSize === 'off') return null
   const mini = minimizable && gifSize === 'mini'
@@ -43,7 +44,8 @@ export default function Media({ ex, id, compact, minimizable }) {
 
 export function Thumb({ ex }) {
   const lang = useStore(s => s.S.lang || 'en')
-  const shown = effectiveExercise(ex, lang)
+  const body = useStore(s => s.S.body || 'male')
+  const shown = effectiveExercise(ex, lang, body)
   if (!shown?.img) return <div className="thumb thumb-x"><Icon name="dumbbell" /></div>
   return <img className="thumb" loading="lazy" decoding="async" draggable={false} src={imgSrc(shown)} alt="" />
 }
