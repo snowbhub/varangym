@@ -1,16 +1,27 @@
 /* VARANGYM product polish — role dashboards, subscription UX and mobile glass. */
 
-:root{--vg-glass:color-mix(in srgb,var(--bg) 76%,transparent)}
+:root{--vg-glass:color-mix(in srgb,var(--bg-el) 88%,transparent)}
+:root[data-accent="varangym"]{--acc:#32e56d;--acc-2:#20b950;--on-acc:#000;--acc-soft:color-mix(in srgb,#32e56d 16%,transparent);--acc-line:color-mix(in srgb,#32e56d 38%,transparent)}
 
-/* Premium iOS-like bottom navigation without sacrificing contrast. */
+/* Premium bottom navigation. Android keeps a cheaper blur; Safari gets the stronger glass. */
 #tabbar{
   background:var(--vg-glass)!important;
-  -webkit-backdrop-filter:saturate(180%) blur(26px)!important;
-  backdrop-filter:saturate(180%) blur(26px)!important;
-  border-top:1px solid color-mix(in srgb,var(--label) 13%,transparent)!important;
-  box-shadow:0 -14px 34px -26px rgba(0,0,0,.8),0 -1px 0 color-mix(in srgb,var(--label) 5%,transparent)!important;
+  -webkit-backdrop-filter:saturate(150%) blur(14px)!important;
+  backdrop-filter:saturate(150%) blur(14px)!important;
+  border-top:1px solid color-mix(in srgb,var(--label) 12%,transparent)!important;
+  box-shadow:0 -12px 34px -27px rgba(0,0,0,.88),0 -1px 0 color-mix(in srgb,var(--label) 5%,transparent)!important;
 }
-:root[data-theme="light"] #tabbar{background:color-mix(in srgb,#fff 78%,transparent)!important}
+@supports (-webkit-touch-callout:none){
+  #tabbar{
+    background:color-mix(in srgb,var(--bg-el) 70%,transparent)!important;
+    -webkit-backdrop-filter:saturate(190%) blur(24px)!important;
+    backdrop-filter:saturate(190%) blur(24px)!important;
+    border-top-color:color-mix(in srgb,var(--label) 16%,transparent)!important;
+    box-shadow:0 -18px 42px -31px rgba(0,0,0,.92),inset 0 1px 0 color-mix(in srgb,#fff 5%,transparent)!important;
+  }
+  :root[data-theme="light"] #tabbar{background:color-mix(in srgb,#f7f7fa 68%,transparent)!important}
+}
+:root[data-theme="light"] #tabbar{background:color-mix(in srgb,#fff 82%,transparent)!important}
 #tabbar button{transition:color .18s ease,transform .18s ease,opacity .18s ease}
 #tabbar button:active{transform:scale(.94)}
 #tabbar .cir{box-shadow:0 12px 34px -13px color-mix(in srgb,var(--acc) 68%,transparent)}
@@ -19,33 +30,42 @@
 .vg-role-mode-root .grid2{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important;min-width:0}
 .vg-role-mode-root .grid2>*{min-width:0}
 .vg-role-mode-root .stat{
-  min-width:0!important;min-height:104px;padding:14px 14px 13px!important;
-  border-radius:18px!important;background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 96%,var(--acc) 4%),var(--surface))!important;
-  border:1px solid color-mix(in srgb,var(--label) 9%,transparent)!important;
-  box-shadow:0 10px 28px -24px rgba(0,0,0,.9)!important;
+  min-width:0!important;min-height:108px;padding:14px 14px 13px!important;
+  border-radius:18px!important;
+  background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 93%,var(--acc) 7%),var(--surface))!important;
+  border:1px solid color-mix(in srgb,var(--label) 10%,transparent)!important;
+  box-shadow:0 12px 30px -27px rgba(0,0,0,.95),inset 0 1px 0 color-mix(in srgb,#fff 2%,transparent)!important;
   display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;
 }
-.vg-role-mode-root .stat>.icn{color:var(--acc);margin-bottom:auto;width:19px;height:19px}
+.vg-role-mode-root button.stat:active{transform:scale(.985)}
+.vg-role-mode-root .stat>.icn,.vg-role-mode-root .stat>svg{color:var(--acc);margin-bottom:auto;width:19px;height:19px}
 .vg-role-mode-root .stat .n{font-size:clamp(22px,6.2vw,31px)!important;font-weight:760!important;letter-spacing:-.045em!important;line-height:1.02!important;overflow-wrap:anywhere}
 .vg-role-mode-root .stat .l{font-size:12px!important;line-height:1.2!important;font-weight:650!important;color:var(--label-2)!important;margin-top:6px!important}
 .vg-role-mode-root .stat .s{font-size:10px!important;color:var(--label-3)!important;margin-top:4px!important}
+.vg-role-mode-root .grid2>.stat:nth-child(4n+1){background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 86%,var(--acc) 14%),var(--surface))!important}
 .vg-role-mode-root .card{max-width:100%;min-width:0;overflow:hidden}
 .vg-role-mode-root .chart{min-width:0;overflow:hidden}
-.vg-role-mode-root .mrow{min-width:0}
-.vg-role-mode-root .mrow .nm{min-width:0!important;white-space:normal!important;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.2}
 
-/* Countries/regions: one full-width card per block. No sideways or nested scrollbar on iPhone. */
-.vg-mode-admin.vg-view-stats .grid2:has(.mrow){grid-template-columns:1fr!important}
-.vg-mode-admin.vg-view-stats .grid2:has(.mrow)>.card{width:100%;max-height:none!important;overflow:visible!important}
-.vg-mode-admin.vg-view-stats .grid2:has(.mrow) .mrow .bar{width:min(34vw,150px)}
+/* Distribution rows must shrink inside the phone. */
+.vg-role-mode-root .mrow{min-width:0!important;display:grid!important;grid-template-columns:minmax(0,1fr) minmax(74px,34%) auto!important;gap:9px!important;align-items:center!important}
+.vg-role-mode-root .mrow .nm{min-width:0!important;width:auto!important;white-space:normal!important;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.18;overflow:hidden;overflow-wrap:anywhere}
+.vg-role-mode-root .mrow .bar{min-width:0!important;width:100%!important}
+.vg-role-mode-root .mrow .v{min-width:20px;text-align:right}
 
-/* Stronger information hierarchy for the role shell quick navigation. */
+/* Countries/regions: one full-width card per block. Never a clipped second column on iPhone. */
+.vg-mode-admin.vg-view-stats .vg-role-console-body>.narrow>.grid2:last-of-type,
+.vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow){grid-template-columns:1fr!important}
+.vg-mode-admin.vg-view-stats .vg-role-console-body>.narrow>.grid2:last-of-type>.card,
+.vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow)>.card{width:100%!important;max-width:100%!important;max-height:none!important;overflow:hidden!important}
+
+/* Stronger information hierarchy for role shell quick navigation. */
 .vg-admin-quicknav{gap:10px!important}
-.vg-admin-quick{background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 94%,var(--acc) 6%),var(--surface))!important;border-color:color-mix(in srgb,var(--label) 10%,transparent)!important;box-shadow:0 12px 30px -26px rgba(0,0,0,.95)}
+.vg-admin-quick{background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 92%,var(--acc) 8%),var(--surface))!important;border-color:color-mix(in srgb,var(--label) 10%,transparent)!important;box-shadow:0 12px 30px -26px rgba(0,0,0,.95)}
 .vg-admin-quick b{font-weight:760!important;letter-spacing:-.015em}
 
 /* Dedicated subscription screen. */
 .vg-subscription-page{padding-bottom:calc(128px + var(--sab))}
+.vg-subscription-manager{min-width:0;overflow-x:clip}
 .vg-subscription-hero{position:relative;overflow:hidden;padding:20px!important;background:radial-gradient(circle at 88% 8%,color-mix(in srgb,var(--acc) 24%,transparent),transparent 42%),linear-gradient(145deg,color-mix(in srgb,var(--surface) 96%,var(--acc) 4%),var(--surface))!important}
 .vg-subscription-hero:after{content:'';position:absolute;width:150px;height:150px;border-radius:50%;right:-72px;bottom:-90px;background:color-mix(in srgb,var(--acc) 14%,transparent);filter:blur(1px);pointer-events:none}
 .vg-subscription-hero .vg-plan-kicker{font-size:12px;font-weight:760;letter-spacing:.08em;text-transform:uppercase;color:var(--acc)}
@@ -57,10 +77,11 @@
 .vg-plan-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin:0 2px 10px}
 .vg-plan-section-head h2{font-size:21px;letter-spacing:-.025em}.vg-plan-section-head p{font-size:12px;color:var(--label-3);text-align:right;max-width:46%}
 .vg-plan-grid{display:grid;grid-template-columns:1fr;gap:11px}
-.vg-plan-card{position:relative;overflow:hidden;border-radius:20px;padding:17px;background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 96%,var(--acc) 4%),var(--surface));border:1px solid color-mix(in srgb,var(--label) 9%,transparent);box-shadow:0 12px 34px -30px rgba(0,0,0,.95)}
-.vg-plan-card.recommended{border-color:color-mix(in srgb,var(--acc) 46%,transparent);background:linear-gradient(150deg,color-mix(in srgb,var(--acc) 14%,var(--surface)),var(--surface) 58%)}
+.vg-plan-card{position:relative;overflow:hidden;border-radius:20px;padding:17px;background:linear-gradient(145deg,color-mix(in srgb,var(--surface) 94%,var(--acc) 6%),var(--surface));border:1px solid color-mix(in srgb,var(--label) 9%,transparent);box-shadow:0 12px 34px -30px rgba(0,0,0,.95)}
+.vg-plan-card.recommended{border-color:color-mix(in srgb,var(--acc) 48%,transparent);background:linear-gradient(150deg,color-mix(in srgb,var(--acc) 15%,var(--surface)),var(--surface) 58%)}
 .vg-plan-card .vg-recommended{position:absolute;right:12px;top:12px;font-size:10px;font-weight:800;color:var(--on-acc);background:var(--acc);padding:5px 8px;border-radius:999px}
-.vg-plan-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.vg-plan-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding-right:0}
+.vg-plan-card.recommended .vg-plan-top{padding-right:80px}
 .vg-plan-name{font-size:20px;font-weight:800;letter-spacing:-.025em}.vg-plan-audience{font-size:12px;color:var(--label-3);margin-top:3px}
 .vg-plan-price{text-align:right;white-space:nowrap}.vg-plan-price b{font-size:24px;letter-spacing:-.04em}.vg-plan-price span{display:block;font-size:11px;color:var(--label-3);margin-top:2px}
 .vg-plan-features{display:grid;gap:7px;margin:14px 0 15px}.vg-plan-feature{display:flex;align-items:flex-start;gap:8px;font-size:13px;line-height:1.3;color:var(--label-2)}.vg-plan-feature svg{color:var(--acc);flex:none;margin-top:1px;width:15px;height:15px}
@@ -81,6 +102,7 @@
 /* General guardrails against accidental horizontal layout leaks. */
 #app,.narrow,.card,.sect,.list,.vg-role-mode-root,.vg-subscription-page{max-width:100%;min-width:0}
 #app{overflow-x:clip}
+.vg-role-mode-root .narrow,.vg-role-console-body,.vg-role-console-body>.narrow{overflow-x:clip}
 
 @media (min-width:760px){
   .vg-plan-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -89,11 +111,13 @@
 }
 @media (max-width:420px){
   .vg-role-mode-root .grid2{gap:8px!important}
-  .vg-role-mode-root .stat{min-height:96px;padding:12px!important;border-radius:16px!important}
+  .vg-role-mode-root .stat{min-height:98px;padding:12px!important;border-radius:16px!important}
   .vg-role-mode-root .stat .n{font-size:23px!important}
+  .vg-role-mode-root .mrow{grid-template-columns:minmax(0,1fr) minmax(68px,31%) auto!important;gap:7px!important}
   .vg-subscription-hero{padding:17px!important}.vg-subscription-hero .vg-plan-title{font-size:27px}
-  .vg-plan-card{padding:15px}.vg-plan-name{font-size:18px}.vg-plan-price b{font-size:22px}
-  .vg-plan-top{gap:8px}.vg-plan-audience{max-width:180px}
+  .vg-plan-card{padding:15px}.vg-plan-name{font-size:18px}.vg-plan-price b{font-size:21px}
+  .vg-plan-top{gap:8px;display:grid;grid-template-columns:minmax(0,1fr) auto}.vg-plan-card.recommended .vg-plan-top{padding-right:0;padding-top:24px}.vg-plan-audience{max-width:none}
   .vg-current-plan{grid-template-columns:1fr}.vg-current-plan .btn{width:100%}
   .vg-login-plan{padding:13px}.vg-login-plan-head strong{font-size:18px}
+  .vg-plan-section-head p{display:none}
 }
