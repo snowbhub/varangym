@@ -1,10 +1,9 @@
-import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, effectiveRoutines } from '../lib/history.js'
 import { todayISO } from '../lib/format.js'
 import { t } from '../lib/i18n.js'
-import { getRoleMode, roleRoute, setRoleMode, viewOf } from '../lib/role-mode.js'
+import { getRoleMode, roleRoute, viewOf } from '../lib/role-mode.js'
 import Icon from './Icon.jsx'
 
 export default function TabBar({ onStart }) {
@@ -17,17 +16,14 @@ export default function TabBar({ onStart }) {
   const cur = parts[1] || 'home'
   const pathRole = ['trainer','business','admin'].includes(cur) ? cur : null
 
-  useEffect(() => {
-    if (cur === 'home' && !pathRole) setRoleMode(null)
-  }, [cur, pathRole])
-
   if (!user && !isGuest) return null
-  const carriedRole = !pathRole && ['plan','muscles'].includes(cur) ? getRoleMode() : null
-  const roleMode = pathRole || carriedRole
+  const storedRole = getRoleMode()
+  const carriesMode = ['home','settings','plan','muscles'].includes(cur)
+  const roleMode = pathRole || (carriesMode ? storedRole : null)
   const roleView = pathRole
     ? (parts[2] === 'exercises' ? 'exercises' : viewOf(loc.search))
-    : carriedRole
-      ? (cur === 'muscles' || carriedRole === 'admin' ? 'exercises' : 'dashboard')
+    : roleMode
+      ? cur === 'home' ? 'home' : cur === 'plan' ? 'dashboard' : cur === 'muscles' ? 'exercises' : null
       : null
 
   if (roleMode) {
