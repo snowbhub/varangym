@@ -4,12 +4,16 @@ import { api } from '../lib/api.js'
 import { useUI } from '../store/useUI.js'
 import { Button, Row, Section } from './ui.jsx'
 
+const fmtDate=v=>{if(!v)return'—';try{return new Date(v).toLocaleDateString('uk-UA')}catch{return'—'}}
+
 export default function PlanManagerPro({mode='trainer',workspaceId:workspaceProp='',workspaces=[],clients=[]}) {
   const nav=useNavigate()
   const toast=useUI(s=>s.toast)
   const [workspaceId,setWorkspaceId]=useState(workspaceProp||workspaces[0]?.id||workspaces[0]?.workspace_id||'')
   const [clientId,setClientId]=useState('')
   const [preview,setPreview]=useState(null)
+  const [assignment,setAssignment]=useState(null)
+  const [assignmentLoading,setAssignmentLoading]=useState(false)
   const [busy,setBusy]=useState(false)
   const [err,setErr]=useState('')
 
@@ -27,6 +31,17 @@ export default function PlanManagerPro({mode='trainer',workspaceId:workspaceProp
   }
   useEffect(()=>{load()},[workspaceId])
 
+  const loadAssignment=async()=>{
+    if(!workspaceId||!clientId){setAssignment(null);return}
+    setAssignmentLoading(true)
+    try{
+      const d=await api(`/api/analytics/client/${encodeURIComponent(clientId)}?days=30&workspaceId=${encodeURIComponent(workspaceId)}`)
+      setAssignment(d.currentProgram||null)
+    }catch{setAssignment(null)}
+    finally{setAssignmentLoading(false)}
+  }
+  useEffect(()=>{loadAssignment()},[workspaceId,clientId])
+
   const publish=async()=>{
     if(!workspaceId)return toast('Вибери workspace')
     if(!clientId)return toast('Вибери клієнта')
@@ -39,10 +54,12 @@ export default function PlanManagerPro({mode='trainer',workspaceId:workspaceProp
         body:JSON.stringify({workspaceId,clientId,name:`VARANGYM · ${c?.display_name||c?.name||'Клієнт'}`})
       })
       toast(`План призначено · v${d.versionNumber||1}`)
-      await load()
+      await Promise.all([load(),loadAssignment()])
     }catch(e){toast(e.message||'Не вдалося призначити план')}
     finally{setBusy(false)}
   }
+
+  const selectedClient=clientOptions.find(x=>(x.id||x.user_id)===clientId)
 
   return <div style={{display:'grid',gap:12}}>
     {mode==='admin'&&workspaces.length>0&&<div className="card">
@@ -78,6 +95,10 @@ export default function PlanManagerPro({mode='trainer',workspaceId:workspaceProp
       </select>
       <Button variant="primary" style={{marginTop:10}} disabled={busy||!clientId||!workspaceId} onClick={publish}>{busy?'Призначаю…':'Призначити поточний план'}</Button>
     </div>
+
+    {clientId&&<Section title={`Поточна програма · ${selectedClient?.display_name||selectedClient?.name||'клієнт'}`}>
+      {assignmentLoading?<Row title="Перевіряю призначення…"/>:assignment?<Row icon="calendar" iconTint="var(--acc)" title={assignment.name||'Програма'} subtitle={`Версія ${assignment.version_number||1}${assignment.trainer_name?` · ${assignment.trainer_name}`:''} · опубліковано ${fmtDate(assignment.published_at)}`} value={`${assignment.days?.length||0} днів`}/>:<Row title="Активної програми немає" subtitle="Після натискання «Призначити поточний план» вона зʼявиться тут і синхронізується клієнту."/>}
+    </Section>}
 
     <Section title="Що саме буде призначено">
       {(preview?.days||[]).map((d,i)=><Row key={`${d.weekday}:${d.routineId}:${i}`} icon="calendar" title={d.name||`День ${i+1}`} subtitle={`День тижня: ${d.weekday} · ${d.exercises||0} вправ`}/>) }
