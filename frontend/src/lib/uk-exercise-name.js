@@ -1,3 +1,5 @@
+import { popularExerciseName } from './exercise-popular-name.js'
+
 // Ukrainian exercise-name normalizer for the upstream English catalogue.
 // Most exercise titles are compositional (equipment + movement + position). Translating those
 // components gives coverage for the complete catalogue immediately; unknown model/proper names
@@ -143,7 +145,7 @@ const WORDS = {
   heel:'п’ята', heels:'п’яти', toe:'носок', toes:'носки', handstand:'стійка на руках',
   squat:'присідання', squatters:'присідання', pulse:'пульсація', pulses:'пульсації', hold:'утримання',
   pressdown:'розгинання на блоці', shrug:'шраги', shrugs:'шраги', crossover:'кросовер',
-  crossover:'кросовер', pullover:'пуловер', kickback:'відведення назад', kickbacks:'відведення назад',
+  pullover:'пуловер', kickback:'відведення назад', kickbacks:'відведення назад',
   hyperextension:'гіперекстензія', hyperextensions:'гіперекстензії', nordic:'нордичний',
   bicycle:'велосипед', bike:'велосипед', treadmill:'бігова доріжка', climb:'підйом', climber:'альпініст',
   strongman:'стронгмен', yoga:'йога', pilates:'пілатес', plyometric:'пліометричний',
@@ -167,6 +169,8 @@ function preserveCase(source, translated) {
 
 export function ukExerciseName(name='') {
   if (!name) return ''
+  const popular=popularExerciseName(name,'uk')
+  if(popular)return popular
   let s = String(name).replace(/[–—]/g,'-').replace(/\s+/g,' ').trim()
   // Normalize punctuation variants so phrases such as pull-up and sit-up hit the dictionary.
   let work = s.toLowerCase().replace(/-/g,' ')
