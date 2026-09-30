@@ -17,7 +17,6 @@ import { api } from './lib/api.js'
 import { MOBILE } from './lib/mobile.js'
 import { startFlow } from './sheets.jsx'
 import TabBar from './components/TabBar.jsx'
-import SettingsRoleAccess from './components/SettingsRoleAccess.jsx'
 import ErrorBoundary from './components/ErrorBoundary.jsx'
 import Modals from './components/Modals.jsx'
 import Toast from './components/Toast.jsx'
@@ -26,7 +25,7 @@ import RestTimer from './components/RestTimer.jsx'
 import TimerFlash from './components/TimerFlash.jsx'
 import Login from './views/Login.jsx'
 import MobileOnboarding from './views/MobileOnboarding.jsx'
-import Home from './views/Home.jsx'
+import ModeHome, { RoleModeRoot } from './views/ModeHome.jsx'
 import CheckIn from './views/CheckIn.jsx'
 import Plan from './views/Plan.jsx'
 import RoutineEdit from './views/RoutineEdit.jsx'
@@ -35,8 +34,7 @@ import Stats from './views/Stats.jsx'
 import History from './views/History.jsx'
 import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
-import Settings from './views/Settings.jsx'
-import RoleConsole from './views/RoleConsole.jsx'
+import UnifiedSettings from './views/UnifiedSettings.jsx'
 import RoleLibrary from './views/RoleLibrary.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
@@ -91,9 +89,6 @@ function Shell() {
   }, [user?.id, ready])
   useEffect(() => {
     if (!user?.id || !ready) return
-    // Resolve city/region/country from the latest public session IP immediately after a
-    // signed-in profile is ready. The geo service caches the result in Postgres and only
-    // refreshes when the IP changes or the cached row is stale, so this is cheap on return visits.
     api(`/api/geo/user/${encodeURIComponent(user.id)}`).catch(() => {})
   }, [user?.id, ready])
   useEffect(() => {
@@ -125,7 +120,7 @@ function Shell() {
           {authed && !needsMobileOnboarding && <SyncBanner />}
           {!authed ? <Login /> : needsMobileOnboarding ? <MobileOnboarding /> : (
             <Routes>
-              <Route path="/home" element={<Home />} />
+              <Route path="/home" element={<ModeHome />} />
               {S.checkIn !== false && <Route path="/checkin" element={<CheckIn />} />}
               <Route path="/plan" element={<Plan />} />
               <Route path="/plan/r/:id" element={<RoutineEdit />} />
@@ -134,12 +129,12 @@ function Shell() {
               <Route path="/history" element={<History />} />
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
-              <Route path="/settings" element={<><Settings />{user && <SettingsRoleAccess />}</>} />
+              <Route path="/settings" element={<UnifiedSettings />} />
               <Route path="/trainer/exercises" element={<RoleLibrary mode="trainer" />} />
               <Route path="/business/exercises" element={<RoleLibrary mode="business" />} />
-              <Route path="/trainer" element={<RoleConsole mode="trainer" />} />
-              <Route path="/business" element={<RoleConsole mode="business" />} />
-              <Route path="/admin" element={<RoleConsole mode="admin" />} />
+              <Route path="/trainer" element={<RoleModeRoot mode="trainer" />} />
+              <Route path="/business" element={<RoleModeRoot mode="business" />} />
+              <Route path="/admin" element={<RoleModeRoot mode="admin" />} />
               <Route path="/coach" element={<CoachChat />} />
               <Route path="/coach/intake" element={<CoachIntake />} />
               <Route path="/coach/proposal" element={<Navigate to="/coach" replace />} />
