@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Settings from './Settings.jsx'
-import SubscriptionPanel from '../components/SubscriptionPanel.jsx'
 import { Row, Section } from '../components/ui.jsx'
 import { useStore } from '../store/useStore.js'
+import { api } from '../lib/api.js'
 import { loadPlatformIdentity, platformAccess } from '../lib/platform-role.js'
 import { getRoleMode, roleRoute, setRoleMode } from '../lib/role-mode.js'
 
@@ -13,14 +13,20 @@ const MODE_COPY={
   trainer:{title:'Coach панель',subtitle:'Клієнти, програми, прогрес і коди',icon:'chartLine',tint:'var(--blue)'},
 }
 const modeTitle=m=>m==='admin'?'Admin':m==='business'?'Business':m==='trainer'?'Coach':'Звичайний'
+const date=v=>{if(!v)return'';try{return new Date(v).toLocaleDateString('uk-UA')}catch{return''}}
 
 export default function UnifiedSettings(){
   const nav=useNavigate()
   const user=useStore(s=>s.user)
   const [identity,setIdentity]=useState(null)
   const [mode,setModeState]=useState(()=>getRoleMode())
+  const [subscription,setSubscription]=useState(null)
 
-  useEffect(()=>{if(user)loadPlatformIdentity().then(setIdentity).catch(()=>{})},[user?.id])
+  useEffect(()=>{
+    if(!user)return
+    loadPlatformIdentity().then(setIdentity).catch(()=>{})
+    api('/api/trial/status').then(d=>setSubscription((d.subscriptions||[]).find(x=>['active','trialing'].includes(x.status))||d.subscriptions?.[0]||null)).catch(()=>{})
+  },[user?.id])
   useEffect(()=>{
     const sync=e=>setModeState(e?.detail??getRoleMode())
     window.addEventListener('varangym-role-mode',sync)
@@ -33,36 +39,33 @@ export default function UnifiedSettings(){
     business:!!access.business,
     trainer:!!access.trainer,
   }
-  const canManage=effectiveAccess.platformAdmin||effectiveAccess.business||effectiveAccess.trainer
   const switchMode=next=>{
     setRoleMode(next)
     setModeState(next||null)
     nav(next?roleRoute(next,'home'):'/home',{replace:true})
   }
+  const subLabel=subscription?.plan_metadata?.label||subscription?.plan_code||'Обрати тариф'
+  const subNote=subscription?.status==='trialing'
+    ? `Trial${subscription.trial_ends_at?` до ${date(subscription.trial_ends_at)}`:''}`
+    : subscription?.status==='active'?'Активна підписка':'Solo, Coach або Business'
 
   return <div className="narrow vg-unified-settings">
     <div className="hdr"><div style={{flex:1}}><h1>Налаштування</h1><div className="sub">Режим: {modeTitle(mode)} · VARANGYM</div></div></div>
 
     {user&&<Section title="Акаунт">
       <Row icon="personCircle" iconTint="var(--grey)" title={user.name||identity?.user?.display_name||'VARANGYM'} subtitle={mode?`${modeTitle(mode)} режим активний`:'Звичайний режим тренувань'} />
-    </Section>}
-
-    {user&&<Section title="Режим застосунку" footer="Перемикає весь інтерфейс VARANGYM. Кнопки стоять на постійних місцях — активний режим лише позначається галочкою.">
       <Row icon="house" iconTint="var(--acc)" title="Звичайний режим" subtitle="Мої тренування, план, статистика та вправи" accessory={!mode?'check':'chevron'} onClick={()=>switchMode(null)}/>
       {effectiveAccess.platformAdmin&&<Row icon={MODE_COPY.admin.icon} iconTint={MODE_COPY.admin.tint} title={MODE_COPY.admin.title} subtitle={MODE_COPY.admin.subtitle} accessory={mode==='admin'?'check':'chevron'} onClick={()=>switchMode('admin')}/>} 
       {effectiveAccess.business&&<Row icon={MODE_COPY.business.icon} iconTint={MODE_COPY.business.tint} title={MODE_COPY.business.title} subtitle={MODE_COPY.business.subtitle} accessory={mode==='business'?'check':'chevron'} onClick={()=>switchMode('business')}/>} 
       {effectiveAccess.trainer&&<Row icon={MODE_COPY.trainer.icon} iconTint={MODE_COPY.trainer.tint} title={MODE_COPY.trainer.title} subtitle={MODE_COPY.trainer.subtitle} accessory={mode==='trainer'?'check':'chevron'} onClick={()=>switchMode('trainer')}/>} 
-      {!canManage&&<Row icon="info" title="Coach / Business" subtitle="Для керівного режиму потрібна відповідна роль або підписка."/>}
+      <Row icon="creditCard" iconTint="var(--acc)" title="Керування підпискою" subtitle={`${subLabel} · ${subNote}`} accessory="chevron" onClick={()=>nav('/subscription')}/>
     </Section>}
-
-    {user&&<SubscriptionPanel/>}
 
     <div className={'vg-settings-legacy '+(effectiveAccess.platformAdmin?'vg-hide-legacy-admin':'')}><Settings/></div>
     <style>{`
       .vg-unified-settings>.vg-settings-legacy>.narrow{padding-top:0!important;max-width:none!important}
       .vg-unified-settings>.vg-settings-legacy>.narrow>.hdr{display:none!important}
-      .vg-unified-settings>.vg-settings-legacy>.narrow>.sect:first-of-type .sect-b>.lrow:first-child{display:none!important}
-      .vg-unified-settings>.vg-settings-legacy.vg-hide-legacy-admin>.narrow>.sect:first-of-type .sect-b>.lrow:nth-child(2){display:none!important}
+      .vg-unified-settings>.vg-settings-legacy>.narrow>.sect:first-of-type{display:none!important}
     `}</style>
   </div>
 }
