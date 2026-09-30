@@ -1,158 +1,424 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { api } from '../lib/api.js'
-import { EXIDX } from '../lib/exercises.js'
-import { exerciseNameFor } from '../lib/i18n.js'
 import { loadPlatformIdentity, platformAccess, trainerMemberships, businessMemberships } from '../lib/platform-role.js'
 import { setRoleMode, viewOf } from '../lib/role-mode.js'
-import { loadExerciseOverrides } from '../lib/exercise-overrides.js'
 import { useUI } from '../store/useUI.js'
 import { confirmSheet } from '../sheets.jsx'
 import Icon from '../components/Icon.jsx'
 import LineChart from '../components/LineChart.jsx'
-import { Thumb } from '../components/Media.jsx'
-import ClientStatsMirror from '../components/ClientStatsMirror.jsx'
-import { Button, Row, Section, Segmented, Switch } from '../components/ui.jsx'
+import { Button, Row, Section, Segmented } from '../components/ui.jsx'
+import ManagedClientStats from '../components/ManagedClientStats.jsx'
+import PlanManagerPro from '../components/PlanManagerPro.jsx'
+import AdminExerciseStudio from '../components/AdminExerciseStudio.jsx'
 
 const money=(cents,currency='USD')=>new Intl.NumberFormat('uk-UA',{style:'currency',currency,maximumFractionDigits:2}).format(Number(cents||0)/100)
 const num=v=>new Intl.NumberFormat('uk-UA').format(Number(v||0))
 const date=v=>{if(!v)return'—';try{return new Date(v).toLocaleDateString('uk-UA')}catch{return'—'}}
 const dt=v=>{if(!v)return'—';try{return new Date(v).toLocaleString('uk-UA')}catch{return'—'}}
-const activeInvite=i=>!i.revoked_at&&Number(i.use_count||0)<Number(i.max_uses||1)&&new Date(i.expires_at).getTime()>Date.now()
 const ts=v=>{const x=String(v||'');const d=x.length===7?`${x}-01`:x;const n=new Date(d).getTime();return Number.isFinite(n)?n:Date.now()}
+const activeInvite=i=>!i.revoked_at&&Number(i.use_count||0)<Number(i.max_uses||1)&&new Date(i.expires_at).getTime()>Date.now()
 
-function Metric({label,value,note,onClick,icon}){const Tag=onClick?'button':'div';return <Tag className="stat" onClick={onClick} style={onClick?{textAlign:'left',width:'100%',cursor:'pointer'}:undefined}>{icon&&<Icon name={icon}/>}<div className="n">{value}</div><div className="l">{label}</div>{note&&<div className="s">{note}</div>}</Tag>}
-function Bars({rows=[],valueKey='workouts'}){const vals=rows.map(x=>Number(x[valueKey]||0)),max=Math.max(1,...vals);return <div style={{height:150,display:'flex',alignItems:'flex-end',gap:3,borderBottom:'var(--hair) solid var(--sep)',paddingTop:10}}>{rows.map((x,i)=><div key={`${x.day||x.month}:${i}`} title={`${x.day||x.month}: ${x[valueKey]||0}`} style={{flex:1,minWidth:2,height:`${x[valueKey]?Math.max(4,Math.round(Number(x[valueKey])*100/max)):2}%`,borderRadius:'5px 5px 1px 1px',background:'var(--acc)',opacity:x[valueKey]?.92:.16}} />)}</div>}
-function ErrorBox({text,retry}){return <div className="card"><div className="ttl">Не вдалося завантажити дані</div><div className="ss" style={{margin:'6px 0 12px'}}>{text}</div><Button onClick={retry}>Повторити</Button></div>}
-function SubscriptionBadge({status,plan}){return <span className={'tag '+(status==='active'||status==='trialing'?'acc':'')}>{plan||'без плану'}{status?` · ${status}`:''}</span>}
-function ChartCard({title,subtitle,rows=[],valueKey='workouts',unit=''}){const points=rows.map(x=>({t:ts(x.day||x.month),y:Number(x[valueKey]||0),d:x.day||x.month}));return <div className="card"><div className="row between"><div><div className="lbl2">{title}</div>{subtitle&&<div className="ss">{subtitle}</div>}</div><span className="tag acc">{num(points.reduce((a,p)=>a+p.y,0))}{unit}</span></div><div className="chart" style={{marginTop:8}}><LineChart points={points} h={170} unit={unit}/></div></div>}
-function Distribution({title,rows=[],labelKey,valueKey='count',moneyKey}){const max=Math.max(1,...rows.map(x=>Number(x[valueKey]||0)));return <div className="card"><div className="lbl2" style={{marginBottom:10}}>{title}</div>{rows.length?rows.map((r,i)=><div className="mrow" key={`${r[labelKey]}:${i}`}><span className="nm" style={{minWidth:110}}>{r[labelKey]||'—'}</span><span className="bar"><i style={{width:`${Math.round(Number(r[valueKey]||0)/max*100)}%`}}/></span><span className="v">{num(r[valueKey])}{moneyKey&&r[moneyKey]?` · ${money(r[moneyKey])}`:''}</span></div>):<div className="muted small">Немає даних</div>}</div>}
+function Metric({label,value,note,onClick,icon}) {
+  const Tag=onClick?'button':'div'
+  return <Tag className="stat" onClick={onClick} style={onClick?{textAlign:'left',width:'100%',cursor:'pointer'}:undefined}>
+    {icon&&<Icon name={icon}/>}<div className="n">{value}</div><div className="l">{label}</div>{note&&<div className="s">{note}</div>}
+  </Tag>
+}
+function ChartCard({title,subtitle,rows=[],valueKey='workouts',unit='',moneyValue=false}) {
+  const points=rows.map(x=>({t:ts(x.day||x.month),y:Number(x[valueKey]||0),d:x.day||x.month}))
+  const total=points.reduce((a,p)=>a+p.y,0)
+  return <div className="card">
+    <div className="row between"><div><div className="lbl2">{title}</div>{subtitle&&<div className="ss">{subtitle}</div>}</div><span className="tag acc">{moneyValue?money(total):`${num(total)}${unit}`}</span></div>
+    <div className="chart" style={{marginTop:10}}><LineChart points={points} h={170} unit={unit}/></div>
+  </div>
+}
+function Distribution({title,rows=[],labelKey='label',valueKey='count',valueFormat=num}) {
+  const max=Math.max(1,...rows.map(x=>Number(x[valueKey]||0)))
+  return <div className="card">
+    <div className="lbl2" style={{marginBottom:10}}>{title}</div>
+    {rows.length?rows.slice(0,12).map((r,i)=><div className="mrow" key={`${r[labelKey]}:${i}`}>
+      <span className="nm" style={{minWidth:120,whiteSpace:'normal'}}>{r[labelKey]||'—'}</span>
+      <span className="bar"><i style={{width:`${Math.max(2,Math.round(Number(r[valueKey]||0)/max*100))}%`}}/></span>
+      <span className="v">{valueFormat(r[valueKey]||0)}</span>
+    </div>):<div className="small muted">Немає даних</div>}
+  </div>
+}
+function ErrorBox({text,retry}) {
+  return <div className="card"><div className="ttl">Не вдалося завантажити</div><div className="ss" style={{margin:'6px 0 12px'}}>{text}</div><Button onClick={retry}>Повторити</Button></div>
+}
+function SubscriptionBadge({status,plan}) {
+  return <span className={'tag '+(status==='active'||status==='trialing'?'acc':'')}>{plan||'без плану'}{status?` · ${status}`:''}</span>
+}
 
-function ClientDetail({client,workspaceId,onBack,admin=false,onChanged,initialTab='profile'}){
+function InviteManager({mode,workspaceId,workspaces=[],invites=[],reload}) {
   const toast=useUI(s=>s.toast)
-  const [tab,setTab]=useState(initialTab),[stateData,setStateData]=useState(null),[progress,setProgress]=useState(null),[err,setErr]=useState(''),[busy,setBusy]=useState('')
+  const [role,setRole]=useState(mode==='trainer'?'client':mode==='business'?'client':'solo_client')
+  const [email,setEmail]=useState('')
+  const [workspace,setWorkspace]=useState(workspaceId||'')
+  const [last,setLast]=useState('')
+  const [busy,setBusy]=useState(false)
+  useEffect(()=>{if(workspaceId)setWorkspace(workspaceId)},[workspaceId])
+  const options=mode==='trainer'
+    ? [['client','Клієнт']]
+    : mode==='business'
+      ? [['client','Клієнт'],['trainer','Тренер'],['organization_admin','Адмін організації']]
+      : [['solo_client','Solo'],['independent_trainer','Тренер'],['organization_owner','Бізнес'],['client','Клієнт workspace'],['trainer','Тренер workspace']]
+  const needsWs=['client','trainer','organization_admin'].includes(role)
+  const create=async()=>{
+    if(needsWs&&!workspace)return toast('Вибери workspace')
+    setBusy(true)
+    try{
+      const d=await api('/api/invites',{method:'POST',body:JSON.stringify({targetRole:role,workspaceId:needsWs?workspace:null,email:email.trim()||null,maxUses:1,expiresInDays:7})})
+      setLast(d.code);toast('Код створено');await reload?.()
+    }catch(e){toast(e.message||'Не вдалося створити код')}
+    finally{setBusy(false)}
+  }
+  return <div className="card">
+    <div className="lbl2">Код привʼязки</div>
+    <div className="ss">Код привʼязує клієнта до тренера або людину до організації. Реєстрація trial без коду працює окремо.</div>
+    <div style={{display:'grid',gap:9,marginTop:10}}>
+      <select className="field" value={role} onChange={e=>setRole(e.target.value)}>{options.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>
+      {needsWs&&mode==='admin'&&<select className="field" value={workspace} onChange={e=>setWorkspace(e.target.value)}><option value="">Workspace…</option>{workspaces.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select>}
+      <input className="field" type="email" placeholder="Email (необовʼязково)" value={email} onChange={e=>setEmail(e.target.value)}/>
+      <Button variant="primary" disabled={busy} onClick={create}>{busy?'Створюю…':'Створити код'}</Button>
+      {last&&<button className="card" style={{fontSize:24,fontWeight:800,letterSpacing:'.08em'}} onClick={()=>navigator.clipboard?.writeText(last).then(()=>toast('Скопійовано'))}>{last}</button>}
+    </div>
+    <div className="ss" style={{marginTop:10}}>{invites.filter(activeInvite).length} активних кодів</div>
+  </div>
+}
+
+function ClientDetail({client,workspaceId,onBack,admin=false,onChanged,geo}) {
+  const toast=useUI(s=>s.toast)
+  const [tab,setTab]=useState('profile')
+  const [stateData,setStateData]=useState(null)
+  const [location,setLocation]=useState(geo||null)
+  const [err,setErr]=useState('')
+  const [busy,setBusy]=useState('')
   const id=client.id||client.user_id
+
   const load=async()=>{
     setErr('')
     try{
       const qs=workspaceId?`?workspaceId=${encodeURIComponent(workspaceId)}`:''
-      const jobs=[api(`/api/insights/clients/${encodeURIComponent(id)}/state${qs}`)]
-      if(workspaceId)jobs.push(api(`/api/analytics/client/${encodeURIComponent(id)}?days=90&workspaceId=${encodeURIComponent(workspaceId)}`))
-      const out=await Promise.allSettled(jobs)
-      if(out[0].status==='fulfilled')setStateData(out[0].value)
-      else throw out[0].reason
-      if(out[1]?.status==='fulfilled')setProgress(out[1].value)
+      const [stateResult,geoResult]=await Promise.allSettled([
+        api(`/api/insights/clients/${encodeURIComponent(id)}/state${qs}`),
+        api(`/api/geo/user/${encodeURIComponent(id)}`)
+      ])
+      if(stateResult.status!=='fulfilled')throw stateResult.reason
+      setStateData(stateResult.value)
+      if(geoResult.status==='fulfilled')setLocation(geoResult.value.location||null)
     }catch(e){setErr(e.message||'Помилка')}
   }
-  useEffect(()=>{setTab(initialTab);setStateData(null);setProgress(null);load()},[id,workspaceId,initialTab])
-  const act=async action=>{setBusy(action);try{await api(`/api/insights/admin/users/${encodeURIComponent(id)}/action`,{method:'POST',body:JSON.stringify({action})});toast('Готово');if(action==='delete'){await onChanged?.();onBack();return}await onChanged?.();await load()}catch(e){toast(e.message||'Не вдалося виконати дію')}finally{setBusy('')}}
+  useEffect(()=>{setStateData(null);setTab('profile');load()},[id,workspaceId])
+
+  const act=async action=>{
+    setBusy(action)
+    try{
+      await api(`/api/insights/admin/users/${encodeURIComponent(id)}/action`,{method:'POST',body:JSON.stringify({action})})
+      toast('Готово')
+      if(action==='delete'){await onChanged?.();onBack();return}
+      await onChanged?.();await load()
+    }catch(e){toast(e.message||'Не вдалося виконати дію')}
+    finally{setBusy('')}
+  }
   const ask=(action,title,message)=>confirmSheet({title,message,confirmText:'Підтвердити',danger:true,onConfirm:()=>act(action)})
+  const profile=stateData?.client||client
+  const S=stateData?.state||{}
+  if(tab==='stats'&&stateData)return <>
+    <Button size="sm" onClick={()=>setTab('profile')}>← Профіль</Button>
+    <ManagedClientStats state={S} client={profile}/>
+  </>
+
   return <>
     <Button size="sm" onClick={onBack}>← Назад</Button>
-    <div className="card" style={{marginTop:12}}><div className="row between"><div><div className="lbl2">Користувач</div><div className="big" style={{fontSize:28}}>{client.display_name||client.name||'Клієнт'}</div><div className="ss">{client.email||'без email'}</div></div><SubscriptionBadge plan={client.plan_code} status={client.subscription_status}/></div></div>
+    <div className="card" style={{marginTop:12}}>
+      <div className="row between">
+        <div><div className="lbl2">Користувач</div><div className="big" style={{fontSize:28}}>{profile.display_name||profile.name||'Клієнт'}</div><div className="ss">{profile.email||'без email'}</div></div>
+        <SubscriptionBadge plan={client.plan_code} status={client.subscription_status}/>
+      </div>
+    </div>
     <div className="card" style={{padding:8}}><Segmented value={tab} onChange={setTab} options={[{value:'profile',label:'Профіль'},{value:'stats',label:'Статистика'},...(admin?[{value:'manage',label:'Керування'}]:[])]}/></div>
     {err&&<ErrorBox text={err} retry={load}/>} 
     {!stateData&&!err&&<div className="empty">Завантаження…</div>}
-    {stateData&&tab==='stats'&&<ClientStatsMirror state={stateData.state} client={stateData.client||client}/>} 
+
     {stateData&&tab==='profile'&&<>
-      <div className="grid2"><Metric value={(stateData.state?.workouts||[]).length} label="всього тренувань"/><Metric value={client.workouts_30d||progress?.summary?.workouts||0} label="тренувань / 30д"/><Metric value={date(client.created_at||stateData.client?.created_at)} label="реєстрація"/><Metric value={client.status||stateData.client?.status||'active'} label="статус акаунта"/></div>
-      <Section title="Акаунт"><Row title="Імʼя" value={client.display_name||stateData.client?.display_name}/><Row title="Email" value={client.email||stateData.client?.email||'—'}/><Row title="Підписка" value={<SubscriptionBadge plan={client.plan_code} status={client.subscription_status}/>}/><Row title="Trial до" value={date(client.trial_ends_at)}/><Row title="Останній вхід" value={dt(client.last_seen_at)}/><Row title="IP останньої сесії" value={client.last_ip||'—'}/><Row title="Пристрій" subtitle={client.user_agent||'—'}/>{client.workspace&&<Row title="Workspace" subtitle={`${client.workspace.type} · ${client.workspace.name}`}/>}</Section>
-      {progress?.currentProgram&&<Section title="Поточна програма"><Row icon="calendar" iconTint="var(--acc)" title={progress.currentProgram.name||'Програма'} subtitle={`v${progress.currentProgram.version_number||1} · ${progress.currentProgram.trainer_name||''}`} value={`${progress.currentProgram.days?.length||0} днів`}/></Section>}
+      <div className="grid2">
+        <Metric value={(S.workouts||[]).length} label="всього тренувань"/>
+        <Metric value={client.workouts_30d||0} label="тренувань / 30д"/>
+        <Metric value={date(profile.created_at||client.created_at)} label="реєстрація"/>
+        <Metric value={client.status||profile.status||'active'} label="статус"/>
+      </div>
+      <Section title="Акаунт">
+        <Row title="Імʼя" value={profile.display_name||'—'}/>
+        <Row title="Email" value={profile.email||'—'}/>
+        <Row title="Підписка" value={<SubscriptionBadge plan={client.plan_code} status={client.subscription_status}/>}/>
+        <Row title="Trial до" value={date(client.trial_ends_at)}/>
+        <Row title="Останній вхід" value={dt(client.last_seen_at)}/>
+        <Row title="IP останньої сесії" value={client.last_ip||location?.ip||'—'}/>
+        <Row title="Пристрій" subtitle={client.user_agent||'—'}/>
+      </Section>
+      <Section title="Географія за IP" footer="Місто/регіон визначаються автоматично з останньої публічної IP-адреси й кешуються в базі. Це приблизна IP-геолокація, не GPS.">
+        <Row icon="globe" title="Місто" value={location?.city||'—'}/>
+        <Row title="Регіон / область" value={location?.region||'—'}/>
+        <Row title="Країна" value={location?.country||'—'}/>
+        <Row title="Часовий пояс" value={location?.timezone||'—'}/>
+        <Row title="Оновлено" value={dt(location?.updated_at)}/>
+      </Section>
+      <Button variant="primary" onClick={()=>setTab('stats')}>Відкрити повну статистику клієнта</Button>
     </>}
+
     {stateData&&admin&&tab==='manage'&&<>
-      <Section title="Доступ і сесії" footer="Блокування не видаляє тренування. Видалення акаунта — незворотне.">
-        {client.status==='disabled'?<Row icon="shield" iconTint="var(--acc)" title="Розблокувати акаунт" subtitle="Повернути можливість входу" accessory="chevron" onClick={()=>act('enable')}/>:<Row icon="shield" iconTint="var(--orange)" title="Забрати доступ" subtitle="Вимкнути акаунт, завершити сесії й entitlement" accessory="chevron" onClick={()=>ask('revoke_access','Забрати доступ?','Користувач не зможе входити, доки адмін не розблокує акаунт.')}/>} 
-        <Row icon="signOut" iconTint="var(--orange)" title="Вийти на всіх пристроях" subtitle="Завершити всі активні сесії" accessory="chevron" onClick={()=>ask('revoke_sessions','Завершити всі сесії?','Потрібно буде увійти заново на кожному пристрої.')}/>
+      <Section title="Доступ і сесії">
+        {client.status==='disabled'
+          ? <Row icon="shield" iconTint="var(--acc)" title="Розблокувати акаунт" accessory="chevron" onClick={()=>act('enable')}/>
+          : <Row icon="shield" iconTint="var(--orange)" title="Забрати доступ" subtitle="Вимкнути акаунт і завершити сесії" accessory="chevron" onClick={()=>ask('revoke_access','Забрати доступ?','Користувач не зможе входити, доки адмін не поверне доступ.')}/>} 
+        <Row icon="signOut" iconTint="var(--orange)" title="Вийти на всіх пристроях" accessory="chevron" onClick={()=>ask('revoke_sessions','Завершити всі сесії?','На всіх пристроях доведеться увійти заново.')}/>
       </Section>
       <Section title="Блок-лист">
-        <Row icon="shield" iconTint="var(--red)" title="Забанити Email" subtitle={client.email||'Email відсутній'} accessory="chevron" onClick={()=>client.email&&ask('ban_email','Забанити Email?','Ця адреса більше не зможе зареєструвати новий акаунт.')}/>
-        <Row icon="shield" iconTint="var(--red)" title="Забанити IP" subtitle={client.last_ip||'IP відсутня'} accessory="chevron" onClick={()=>client.last_ip&&ask('ban_ip','Забанити IP?','Нові сесії з цієї IP-адреси будуть заблоковані.')}/>
-        <Row icon="reset" title="Зняти бани" subtitle="Деактивувати бан Email та останньої IP" accessory="chevron" onClick={()=>act('unban')}/>
+        <Row icon="shield" iconTint="var(--red)" title="Забанити Email" subtitle={client.email||'Email відсутній'} accessory="chevron" onClick={()=>client.email&&ask('ban_email','Забанити Email?','З цією адресою не можна буде зареєструвати новий акаунт.')}/>
+        <Row icon="shield" iconTint="var(--red)" title="Забанити IP" subtitle={client.last_ip||location?.ip||'IP відсутня'} accessory="chevron" onClick={()=>ask('ban_ip','Забанити IP?','Нові сесії з останньої IP-адреси будуть блокуватись.')}/>
+        <Row icon="reset" title="Зняти бани" accessory="chevron" onClick={()=>act('unban')}/>
       </Section>
-      <Section title="Небезпечна зона"><Row icon="trash" iconTint="var(--red)" danger title="Видалити користувача" subtitle="Акаунт, прогрес, звʼязки та дані буде видалено" accessory="chevron" onClick={()=>ask('delete','Видалити акаунт?','Це незворотна дія. Будуть видалені профіль, тренування, звʼязки та облікові дані.')}/></Section>
+      <Section title="Небезпечна зона">
+        <Row icon="trash" iconTint="var(--red)" danger title="Видалити користувача" subtitle="Акаунт, прогрес, звʼязки та дані буде видалено" accessory="chevron" onClick={()=>ask('delete','Видалити акаунт?','Ця дія незворотна.')}/>
+      </Section>
       {busy&&<div className="small muted">Виконується: {busy}…</div>}
     </>}
   </>
 }
 
-function InviteBox({mode,workspaceId,workspaces=[],invites=[],reload}){
-  const toast=useUI(s=>s.toast);const [role,setRole]=useState(mode==='trainer'?'client':mode==='business'?'client':'solo_client'),[email,setEmail]=useState(''),[workspace,setWorkspace]=useState(workspaceId||''),[busy,setBusy]=useState(false),[last,setLast]=useState(null)
-  useEffect(()=>{if(workspaceId)setWorkspace(workspaceId)},[workspaceId])
-  const roleOptions=mode==='trainer'?[['client','Клієнт']]:mode==='business'?[['client','Клієнт'],['trainer','Тренер'],['organization_admin','Адмін організації']]:[['solo_client','Solo'],['independent_trainer','Тренер'],['organization_owner','Бізнес'],['client','Клієнт workspace'],['trainer','Тренер workspace'],['platform_admin','Адмін платформи']]
-  const needsWs=['client','trainer','organization_admin'].includes(role)
-  const create=async()=>{if(needsWs&&!workspace)return toast('Вибери workspace');setBusy(true);try{const d=await api('/api/invites',{method:'POST',body:JSON.stringify({targetRole:role,workspaceId:needsWs?workspace:null,email:email.trim()||null,maxUses:1,expiresInDays:7})});setLast(d.code);toast('Код створено');await reload?.()}catch(e){toast(e.message)}finally{setBusy(false)}}
-  return <div className="card"><div className="lbl2">Код привʼязки</div><div className="ss" style={{margin:'5px 0 12px'}}>Коди потрібні для привʼязки клієнта до тренера або людини до організації.</div><div style={{display:'grid',gap:9}}><select className="field" value={role} onChange={e=>setRole(e.target.value)}>{roleOptions.map(([v,l])=><option key={v} value={v}>{l}</option>)}</select>{needsWs&&mode==='admin'&&<select className="field" value={workspace} onChange={e=>setWorkspace(e.target.value)}><option value="">Workspace…</option>{workspaces.map(w=><option key={w.id} value={w.id}>{w.name}</option>)}</select>}<input className="field" type="email" placeholder="Email (необовʼязково)" value={email} onChange={e=>setEmail(e.target.value)}/><Button variant="primary" icon="plus" disabled={busy} onClick={create}>{busy?'Створюю…':'Створити код'}</Button>{last&&<button className="card" style={{fontSize:24,fontWeight:800,letterSpacing:'.08em',cursor:'pointer'}} onClick={()=>navigator.clipboard?.writeText(last).then(()=>toast('Скопійовано'))}>{last}</button>}</div><div className="ss" style={{marginTop:10}}>{invites.filter(activeInvite).length} активних кодів</div></div>
-}
-
-function PlanAssign({workspaceId,clients=[]}){
-  const toast=useUI(s=>s.toast),nav=useNavigate();const [preview,setPreview]=useState(null),[busy,setBusy]=useState(''),[err,setErr]=useState('')
-  useEffect(()=>{setPreview(null);setErr('');if(workspaceId)api(`/api/profile-plan/preview?workspaceId=${encodeURIComponent(workspaceId)}`).then(setPreview).catch(e=>{setErr(e.message);setPreview({days:[]})})},[workspaceId])
-  const assign=async c=>{const id=c.id||c.user_id;setBusy(id);try{const d=await api('/api/profile-plan/publish',{method:'POST',body:JSON.stringify({workspaceId,clientId:id,name:`${c.display_name||'Client'} · VARANGYM`})});toast(`План призначено · v${d.versionNumber}`)}catch(e){toast(e.message)}finally{setBusy('')}}
-  if(!workspaceId)return <div className="card"><div className="ttl">Спочатку вибери workspace</div><div className="ss">План завжди призначається всередині конкретного тренера або організації.</div></div>
-  return <><div className="card"><div className="row between"><div><div className="lbl2">Шаблон плану</div><div className="big" style={{fontSize:23}}>{preview?.days?.length||0} тренувальних днів</div><div className="ss">Редагування відкриває стандартний редактор VARANGYM, без другого окремого конструктора.</div></div><Button size="sm" onClick={()=>nav('/plan')}>Редагувати</Button></div>{err&&<div className="small" style={{color:'var(--orange)',marginTop:8}}>{err}</div>}</div><Section title={`Призначити клієнту · ${clients.length}`}>{clients.length?clients.map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name||'Клієнт'} subtitle={c.email||''}><Button size="sm" disabled={busy===(c.id||c.user_id)||(preview?.days?.length||0)===0} onClick={()=>assign(c)}>{busy===(c.id||c.user_id)?'…':'Призначити'}</Button></Row>):<Row title="У цьому workspace ще немає клієнтів" subtitle="Додай клієнта кодом привʼязки."/>}</Section></>
-}
-
-function AdminPlanManager({workspaces=[]}){
-  const [workspaceId,setWorkspaceId]=useState(''),[info,setInfo]=useState(null),[err,setErr]=useState('')
-  useEffect(()=>{if(!workspaceId&&workspaces.length)setWorkspaceId(workspaces.find(w=>w.type!=='platform_direct')?.id||workspaces[0].id)},[workspaces,workspaceId])
-  useEffect(()=>{if(!workspaceId)return;setInfo(null);setErr('');api(`/api/insights/workspace?workspaceId=${encodeURIComponent(workspaceId)}`).then(setInfo).catch(e=>setErr(e.message))},[workspaceId])
-  return <><div className="card"><div className="lbl2">Плани користувачів</div><div className="ss" style={{marginBottom:10}}>Вибери тренера/організацію, відредагуй шаблон і признач план клієнту.</div><select className="field" value={workspaceId} onChange={e=>setWorkspaceId(e.target.value)}>{workspaces.map(w=><option key={w.id} value={w.id}>{w.name} · {w.type}</option>)}</select></div>{err?<ErrorBox text={err} retry={()=>setWorkspaceId(v=>v)}/>:<PlanAssign workspaceId={workspaceId} clients={info?.clients||[]}/>}</>
-}
-
-function ExerciseAdmin({adminData}){
-  const toast=useUI(s=>s.toast)
-  const [sub,setSub]=useState('library'),[q,setQ]=useState(''),[locale,setLocale]=useState('uk'),[gender,setGender]=useState('all'),[bodyPart,setBodyPart]=useState(''),[equipment,setEquipment]=useState(''),[muscle,setMuscle]=useState(''),[rows,setRows]=useState([]),[facets,setFacets]=useState({}),[total,setTotal]=useState(0),[shown,setShown]=useState(80),[selected,setSelected]=useState(null),[editLang,setEditLang]=useState('uk'),[busy,setBusy]=useState(false),[err,setErr]=useState('')
-  const load=()=>{setErr('');const p=new URLSearchParams({locale,q,limit:'1500',gender,bodyPart,equipment,muscle});return api(`/api/insights/exercises?${p}`).then(d=>{setRows(d.exercises||[]);setFacets(d.facets||{});setTotal(d.total||0);setShown(80)}).catch(e=>{setErr(e.message);toast(e.message)})}
-  useEffect(()=>{if(sub==='library')load()},[locale,gender,bodyPart,equipment,muscle,sub])
-  const setTr=(lang,key,val)=>setSelected(s=>({...s,translations:{...(s.translations||{}),[lang]:{...(s.translations?.[lang]||{}),[key]:val}}}))
-  const save=async()=>{if(!selected)return;setBusy(true);try{await api(`/api/insights/exercises/${selected.id}`,{method:'PATCH',body:JSON.stringify({active:selected.active,equipment:selected.equipment_key,primaryMuscle:selected.primary_muscle_key,bodyPart:selected.metadata?.bodyPart,image:selected.metadata?.image||null,gif:selected.metadata?.gif||null,imageMale:selected.metadata?.imageMale||null,gifMale:selected.metadata?.gifMale||null,imageFemale:selected.metadata?.imageFemale||null,gifFemale:selected.metadata?.gifFemale||null,gender:selected.metadata?.gender||null,translations:selected.translations})});toast('Вправу оновлено');await loadExerciseOverrides();await load();setSelected(null)}catch(e){toast(e.message)}finally{setBusy(false)}}
-  if(sub==='plans')return <><div className="card" style={{padding:8}}><Segmented value={sub} onChange={setSub} options={[{value:'library',label:'Бібліотека'},{value:'plans',label:'Плани'}]}/></div><AdminPlanManager workspaces={adminData?.workspaces||[]}/></>
-  if(selected){const tr=selected.translations?.[editLang]||{},base=EXIDX[selected.legacy_key];return <><Button size="sm" onClick={()=>setSelected(null)}>← Вправи</Button><div className="card" style={{marginTop:12}}><div className="row" style={{gap:12,alignItems:'center'}}>{base&&<Thumb ex={base}/>}<div><div className="lbl2">Редактор вправи</div><div className="big" style={{fontSize:23}}>{tr.name||selected.name||selected.source_name||selected.legacy_key}</div><div className="ss">ID {selected.legacy_key} · {selected.gender||'unisex'}</div></div></div><div style={{marginTop:12}}><Segmented value={editLang} onChange={setEditLang} options={[{value:'uk',label:'UA'},{value:'ru',label:'RU'},{value:'en',label:'EN'}]}/></div><div style={{display:'grid',gap:10,marginTop:12}}><label className="row between">Доступна всім <Switch checked={selected.active!==false} onChange={v=>setSelected(s=>({...s,active:v}))}/></label><div><div className="small muted">Назва {editLang.toUpperCase()}</div><input className="field" value={tr.name||''} onChange={e=>setTr(editLang,'name',e.target.value)} placeholder={editLang==='uk'?'Поширена назва вправи в Україні':editLang==='ru'?'Поширена назва вправи російською':selected.source_name||'English name'}/></div><div><div className="small muted">Опис</div><textarea className="field" rows="4" value={tr.description||''} onChange={e=>setTr(editLang,'description',e.target.value)} placeholder={selected.source_description||'Короткий опис техніки'}/></div><div><div className="small muted">Інструкція · кожен крок з нового рядка</div><textarea className="field" rows="7" value={Array.isArray(tr.instructions)?tr.instructions.join('\n'):tr.instructions||''} onChange={e=>setTr(editLang,'instructions',e.target.value)} placeholder={(selected.source_instructions||[]).join('\n')}/></div><div className="card" style={{margin:0,padding:12}}><div className="small muted">Оригінал ExerciseDB</div><div className="ttl">{selected.source_name}</div>{(selected.source_instructions||[]).map((x,i)=><div className="ss" key={i}>{i+1}. {x}</div>)}</div><input className="field" value={selected.metadata?.bodyPart||''} onChange={e=>setSelected(s=>({...s,metadata:{...(s.metadata||{}),bodyPart:e.target.value}}))} placeholder="Частина тіла"/><input className="field" value={selected.equipment_key||''} onChange={e=>setSelected(s=>({...s,equipment_key:e.target.value}))} placeholder="Обладнання"/><input className="field" value={selected.primary_muscle_key||''} onChange={e=>setSelected(s=>({...s,primary_muscle_key:e.target.value}))} placeholder="Основний мʼяз"/><div className="small muted">Медіа за профілем тіла</div><input className="field" value={selected.metadata?.gifMale||''} onChange={e=>setSelected(s=>({...s,metadata:{...(s.metadata||{}),gifMale:e.target.value}}))} placeholder="GIF · чоловічий варіант"/><input className="field" value={selected.metadata?.gifFemale||''} onChange={e=>setSelected(s=>({...s,metadata:{...(s.metadata||{}),gifFemale:e.target.value}}))} placeholder="GIF · жіночий варіант"/><input className="field" value={selected.metadata?.gif||''} onChange={e=>setSelected(s=>({...s,metadata:{...(s.metadata||{}),gif:e.target.value}}))} placeholder="GIF · загальний fallback"/><Button variant="primary" disabled={busy} onClick={save}>{busy?'Зберігаю…':'Зберегти зміни'}</Button></div></div></>}
-  return <><div className="card" style={{padding:8}}><Segmented value={sub} onChange={setSub} options={[{value:'library',label:'Бібліотека'},{value:'plans',label:'Плани'}]}/></div><div className="card"><div className="lbl2">Керування вправами · {total||1324}</div><div className="ss">Повна бібліотека, фільтри, UA/RU/EN, вихідний опис та окреме медіа для чоловічого/жіночого профілю.</div><div className="row" style={{gap:8,marginTop:12}}><input className="field" style={{flex:1}} placeholder="Пошук назви, мʼяза, обладнання…" value={q} onChange={e=>setQ(e.target.value)} onKeyDown={e=>e.key==='Enter'&&load()}/><Button size="sm" onClick={load}>Знайти</Button></div><div style={{marginTop:9}}><Segmented value={locale} onChange={setLocale} options={[{value:'uk',label:'UA'},{value:'ru',label:'RU'},{value:'en',label:'EN'}]}/></div><div style={{marginTop:9}}><Segmented value={gender} onChange={setGender} options={[{value:'all',label:'Усі'},{value:'male',label:'Чоловік'},{value:'female',label:'Жінка'}]}/></div><div className="grid2" style={{marginTop:9}}><select className="field" value={bodyPart} onChange={e=>setBodyPart(e.target.value)}><option value="">Усі частини тіла</option>{(facets.body_parts||[]).map(x=><option key={x} value={x}>{x}</option>)}</select><select className="field" value={equipment} onChange={e=>setEquipment(e.target.value)}><option value="">Усе обладнання</option>{(facets.equipment||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></div><select className="field" style={{marginTop:9}} value={muscle} onChange={e=>setMuscle(e.target.value)}><option value="">Усі мʼязи</option>{(facets.muscles||[]).map(x=><option key={x} value={x}>{x}</option>)}</select></div>{err&&<ErrorBox text={err} retry={load}/>}<Section title={`Вправи · ${rows.length} з ${total}`}>{rows.slice(0,shown).map(x=>{const base=EXIDX[x.legacy_key],localized=x.translations?.[locale]?.name;const title=localized||(locale==='uk'&&base?exerciseNameFor(base):null)||x.name||x.source_name||x.legacy_key;return <Row key={x.id} iconTint={x.active?'var(--acc)':'var(--grey)'} title={title} subtitle={`${x.metadata?.bodyPart||'—'} · ${x.equipment_key||'—'} · ${x.primary_muscle_key||'—'} · ${x.gender||'unisex'}${x.active?'':' · прихована'}`} accessory="chevron" onClick={()=>{setSelected(x);setEditLang(locale)}}>{base&&<span style={{marginRight:10}}><Thumb ex={base}/></span>}</Row>})}{rows.length===0&&<Row title="Нічого не знайдено"/>}</Section>{rows.length>shown&&<Button onClick={()=>setShown(v=>v+80)}>Показати ще · {rows.length-shown}</Button>}</>
-}
-
-function AdminConsole({view,data,analytics,invites,reload}){
-  const [detail,setDetail]=useState(''),[user,setUser]=useState(null),[userTab,setUserTab]=useState('profile')
+function AdminConsole({view,data,geo,invites,reload}) {
+  const [client,setClient]=useState(null)
+  const [query,setQuery]=useState('')
+  const [detail,setDetail]=useState('')
   const s=data?.summary||{},users=data?.users||[],spaces=data?.workspaces||[],series=data?.series||{}
-  const openUser=(u,tab='profile')=>{setUserTab(tab);setUser(u)}
-  if(user)return <ClientDetail client={user} onBack={()=>setUser(null)} admin initialTab={userTab} onChanged={reload}/>
+  const geoMap=useMemo(()=>new Map((geo?.users||[]).map(x=>[x.id,x])),[geo])
+  if(client)return <ClientDetail client={client} geo={geoMap.get(client.id)} admin onChanged={reload} onBack={()=>setClient(null)}/>
+
   if(view==='home')return <>
-    <div className="card"><div className="row between"><div><div className="lbl2">VARANGYM · Admin</div><div className="big" style={{fontSize:30}}>Платформа</div><div className="ss">Живий стан продукту, активності й доходу.</div></div><div style={{textAlign:'right'}}><div className="big" style={{fontSize:25,color:'var(--acc)'}}>{money(s.mrrCents)}</div><div className="small dim">MRR</div></div></div></div>
-    <div className="grid2"><Metric value={num(s.users)} label="користувачів" note={`+${num(s.newUsers30d)} / 30д`}/><Metric value={num(s.active7)} label="активні / 7д" note={`${num(s.active30)} / 30д`}/><Metric value={num(s.workouts30d)} label="тренувань / 30д"/><Metric value={num(s.sets30d)} label="підходів / 30д"/><Metric value={money(s.monthRevenueCents)} label="дохід цього місяця"/><Metric value={num(s.activeSubscriptions)} label="активних підписок"/><Metric value={num(s.trials)} label="trial"/><Metric value={`${num(s.trialConversionPct)}%`} label="paid / paid+trial"/></div>
-    <ChartCard title="Тренування · 90 днів" subtitle="Щоденна активність платформи" rows={series.activity||[]} valueKey="workouts"/>
+    <div className="card">
+      <div className="row between"><div><div className="lbl2">VARANGYM · Admin</div><div className="big" style={{fontSize:31}}>Платформа</div><div className="ss">Користувачі, продукт, активність і дохід — в одному live overview.</div></div><div style={{textAlign:'right'}}><div className="big" style={{fontSize:25,color:'var(--acc)'}}>{money(s.mrrCents)}</div><div className="small dim">MRR</div></div></div>
+    </div>
+    <div className="grid2">
+      <Metric icon="personCircle" value={num(s.users)} label="користувачів" note={`+${num(s.newUsers30d)} / 30д`}/>
+      <Metric value={num(s.active7)} label="активні / 7д" note={`${num(s.active30)} / 30д`}/>
+      <Metric value={num(s.active90)} label="активні / 90д"/>
+      <Metric value={num(s.workouts30d)} label="тренувань / 30д"/>
+      <Metric value={num(s.sets30d)} label="підходів / 30д"/>
+      <Metric value={money(s.mrrCents)} label="MRR"/>
+      <Metric value={money(s.monthRevenueCents)} label="дохід / місяць"/>
+      <Metric value={money(s.lifetimeRevenueCents)} label="дохід за весь час"/>
+      <Metric value={num(s.activeSubscriptions)} label="paid підписки"/>
+      <Metric value={num(s.trials)} label="trial"/>
+      <Metric value={num(s.organizations)} label="організацій"/>
+      <Metric value={num(geo?.known||0)} label="геолокованих" note={`${num(geo?.total||0)} акаунтів`}/>
+    </div>
+    <ChartCard title="Тренування · 90 днів" subtitle="Щоденна активність" rows={series.activity||[]} valueKey="workouts"/>
+    <ChartCard title="Активні користувачі · 90 днів" rows={series.activity||[]} valueKey="active_users"/>
     <ChartCard title="Нові користувачі · 90 днів" rows={series.signups||[]} valueKey="users"/>
-    <Section title="Останні користувачі">{users.slice(0,8).map(u=><Row key={u.id} icon="personCircle" iconTint={u.status==='disabled'?'var(--red)':'var(--acc)'} title={u.display_name} subtitle={u.plan_code?`${u.plan_code} · ${u.subscription_status||'—'}`:'без підписки'} value={date(u.created_at)} accessory="chevron" onClick={()=>openUser(u)}/>)}</Section>
+    <Distribution title="Топ міст за IP" rows={geo?.byCity||[]}/>
+    <Section title="Останні користувачі">{users.slice(0,8).map(u=><Row key={u.id} icon="personCircle" iconTint={u.status==='disabled'?'var(--red)':'var(--acc)'} title={u.display_name} subtitle={`${u.plan_code||'без плану'} · ${geoMap.get(u.id)?.city||'місто невідоме'}`} value={date(u.created_at)} accessory="chevron" onClick={()=>setClient(u)}/>)}</Section>
   </>
-  if(view==='people')return <><Section title={`Користувачі · ${users.length}`}>{users.map(u=><Row key={u.id} icon="personCircle" iconTint={u.status==='disabled'?'var(--red)':u.is_platform_admin?'var(--acc)':'var(--blue)'} title={u.display_name} subtitle={`${u.email||'без email'} · ${u.plan_code||'без плану'} · ${u.status}`} value={u.workouts_30d?`${u.workouts_30d} / 30д`:u.last_ip||'—'} accessory="chevron" onClick={()=>openUser(u)}/>)}</Section><Section title={`Організації / workspaces · ${spaces.length}`}>{spaces.map(w=><Row key={w.id} icon="personCircle" title={w.name} subtitle={`${w.type} · ${w.members} учасників`} value={`${w.trainers} трен. · ${w.clients} кл.`}/>)}</Section><InviteBox mode="admin" workspaces={spaces} invites={invites} reload={reload}/></>
-  if(view==='dashboard'){const subs=data?.subscriptions||[],payments=data?.payments||[];const filtered=detail==='trials'?subs.filter(x=>x.status==='trialing'):detail==='subs'?subs.filter(x=>x.status==='active'):null;return <>
-    <div className="grid2"><Metric value={money(s.mrrCents)} label="MRR" onClick={()=>setDetail('subs')}/><Metric value={money(s.monthRevenueCents)} label="дохід / місяць" onClick={()=>setDetail('payments')}/><Metric value={money(s.lifetimeRevenueCents)} label="дохід за весь час" onClick={()=>setDetail('payments')}/><Metric value={money(s.arpuCents)} label="ARPU"/><Metric value={num(s.activeSubscriptions)} label="paid підписки" onClick={()=>setDetail('subs')}/><Metric value={num(s.trials)} label="trial" onClick={()=>setDetail('trials')}/><Metric value={`${num(s.trialConversionPct)}%`} label="конверсія paid"/><Metric value={num(s.canceledSubscriptions)} label="expired/canceled"/><Metric value={num(s.organizations)} label="організацій"/><Metric value={num(s.trainers)} label="тренерів"/><Metric value={num(s.clients)} label="linked клієнтів"/><Metric value={num(s.weighIns)} label="зважувань"/></div>
-    <div className="card"><div className="lbl2">Дохід · 12 місяців</div><Bars rows={series.revenueMonthly||[]} valueKey="cents"/><div className="row between" style={{marginTop:8}}><span className="small dim">Платежі після refunds</span><b>{money((series.revenueMonthly||[]).reduce((a,x)=>a+Number(x.cents||0),0))}</b></div></div>
-    <Distribution title="Тарифний мікс" rows={data.planMix||[]} labelKey="plan" valueKey="count" moneyKey="mrrCents"/>
-    <Distribution title="Статуси підписок" rows={data.statusMix||[]} labelKey="status"/>
-    {detail==='payments'&&<Section title="Останні платежі">{payments.slice(0,60).map(p=><Row key={p.id} icon="creditCard" title={p.user_name||p.workspace_name||p.plan_code||'Payment'} subtitle={`${p.plan_code||''} · ${p.status} · ${dt(p.paid_at||p.created_at)}`} value={money(p.amount_cents,p.currency)}/>)}</Section>}{filtered&&<Section title={detail==='trials'?'Trial підписки':'Активні підписки'}>{filtered.map(x=><Row key={x.id} icon="creditCard" title={x.plan_metadata?.label||x.plan_code} subtitle={`${x.subject_type} · ${x.status}`} value={date(x.trial_ends_at||x.current_period_end)}/>)}</Section>}
-  </>}
-  if(view==='stats')return <>
-    <div className="card"><div className="lbl2">Статистика клієнтів</div><div className="big" style={{fontSize:27}}>Прогрес усієї платформи</div><div className="ss">Натисни клієнта — відкриється read-only статистика з його власного профілю: heatmap, баланс мʼязів, вага, прогрес вправ і тренування.</div></div>
-    <div className="grid2"><Metric value={num(s.totalWorkouts)} label="тренувань за весь час"/><Metric value={num(s.workouts30d)} label="тренувань / 30д"/><Metric value={num(s.sets30d)} label="виконаних підходів / 30д"/><Metric value={num(s.active7)} label="активних / 7д"/><Metric value={num(s.active30)} label="активних / 30д"/><Metric value={num(s.active90)} label="активних / 90д"/><Metric value={num(s.weighIns)} label="записів ваги"/><Metric value={num(s.newUsers30d)} label="нових / 30д"/></div>
-    <ChartCard title="Тренування · 90 днів" rows={series.activity||[]} valueKey="workouts"/>
-    <ChartCard title="Активні спортсмени · 90 днів" rows={series.activity||[]} valueKey="active_users"/>
-    <Section title="Клієнти · відкрити їхню статистику">{[...users].sort((a,b)=>Number(b.workouts_30d||0)-Number(a.workouts_30d||0)).map(u=><Row key={u.id} icon="chart" iconTint={u.workouts_30d?'var(--acc)':'var(--grey)'} title={u.display_name} subtitle={`${u.workouts_30d||0} тренувань / 30д · ${u.email||''}`} value={date(u.last_seen_at)} accessory="chevron" onClick={()=>openUser(u,'stats')}/>)}</Section>
-  </>
-  return <ExerciseAdmin adminData={data}/>
+
+  if(view==='people'){
+    const q=query.trim().toLowerCase()
+    const filtered=users.filter(u=>!q||`${u.display_name} ${u.email||''} ${u.plan_code||''} ${geoMap.get(u.id)?.city||''} ${geoMap.get(u.id)?.region||''}`.toLowerCase().includes(q))
+    return <>
+      <div className="card"><div className="lbl2">Користувачі</div><input className="field" style={{marginTop:10}} placeholder="Імʼя, email, тариф, місто, регіон…" value={query} onChange={e=>setQuery(e.target.value)}/></div>
+      <Section title={`Акаунти · ${filtered.length}`}>{filtered.map(u=>{const g=geoMap.get(u.id);return <Row key={u.id} icon="personCircle" iconTint={u.status==='disabled'?'var(--red)':u.is_platform_admin?'var(--acc)':'var(--blue)'} title={u.display_name} subtitle={`${u.email||'без email'} · ${u.plan_code||'без плану'} · ${g?.city||'—'}, ${g?.region||'—'}`} value={u.workouts_30d?`${u.workouts_30d} / 30д`:u.status} accessory="chevron" onClick={()=>setClient(u)}/>} )}</Section>
+      <Section title={`Організації / workspaces · ${spaces.length}`}>{spaces.map(w=><Row key={w.id} icon="personCircle" title={w.name} subtitle={`${w.type} · ${w.members} учасників`} value={`${w.trainers} трен. · ${w.clients} кл.`}/>)}</Section>
+      <InviteManager mode="admin" workspaces={spaces} invites={invites} reload={reload}/>
+    </>
+  }
+
+  if(view==='dashboard'){
+    const subs=data?.subscriptions||[],payments=data?.payments||[]
+    const filteredSubs=detail==='trials'?subs.filter(x=>x.status==='trialing'):detail==='subs'?subs.filter(x=>x.status==='active'):null
+    return <>
+      <div className="card"><div className="lbl2">Фінансовий дашборд</div><div className="big" style={{fontSize:28}}>Revenue & subscriptions</div><div className="ss">Кожна ключова цифра має drill-down, а не просто статичне число.</div></div>
+      <div className="grid2">
+        <Metric value={money(s.mrrCents)} label="MRR" onClick={()=>setDetail('subs')}/>
+        <Metric value={money(s.monthRevenueCents)} label="дохід / місяць" onClick={()=>setDetail('payments')}/>
+        <Metric value={money(s.lifetimeRevenueCents)} label="дохід за весь час" onClick={()=>setDetail('payments')}/>
+        <Metric value={money(s.arpuCents)} label="ARPU"/>
+        <Metric value={num(s.activeSubscriptions)} label="paid підписки" onClick={()=>setDetail('subs')}/>
+        <Metric value={num(s.trials)} label="trial" onClick={()=>setDetail('trials')}/>
+        <Metric value={`${num(s.trialConversionPct)}%`} label="конверсія paid"/>
+        <Metric value={num(s.canceledSubscriptions)} label="expired/canceled"/>
+        <Metric value={num(s.organizations)} label="організацій"/>
+        <Metric value={num(s.trainers)} label="тренерів"/>
+        <Metric value={num(s.clients)} label="linked клієнтів"/>
+        <Metric value={num(s.weighIns)} label="зважувань"/>
+      </div>
+      <ChartCard title="Дохід · 90 днів" rows={series.revenueDaily||[]} valueKey="cents" moneyValue/>
+      <ChartCard title="Дохід · 12 місяців" rows={series.revenueMonthly||[]} valueKey="cents" moneyValue/>
+      <Distribution title="Тарифний мікс" rows={(data.planMix||[]).map(x=>({label:x.plan,count:x.count}))}/>
+      <Distribution title="Статуси підписок" rows={(data.statusMix||[]).map(x=>({label:x.status,count:x.count}))}/>
+      {detail==='payments'&&<Section title="Останні платежі">{payments.slice(0,80).map(p=><Row key={p.id} icon="creditCard" title={p.user_name||p.workspace_name||p.plan_code||'Payment'} subtitle={`${p.plan_code||''} · ${p.status} · ${dt(p.paid_at||p.created_at)}`} value={money(p.amount_cents,p.currency)}/>)}</Section>}
+      {filteredSubs&&<Section title={detail==='trials'?'Trial підписки':'Активні підписки'}>{filteredSubs.map(x=><Row key={x.id} icon="creditCard" title={x.plan_metadata?.label||x.plan_code} subtitle={`${x.subject_type} · ${x.status}`} value={date(x.trial_ends_at||x.current_period_end)}/>)}</Section>}
+    </>
+  }
+
+  if(view==='stats'){
+    const athletes=users.filter(u=>!u.is_platform_admin)
+    const avg30=s.active30?Math.round(Number(s.workouts30d||0)/Math.max(1,Number(s.active30))):0
+    return <>
+      <div className="card"><div className="lbl2">Статистика клієнтів</div><div className="big" style={{fontSize:28}}>Прогрес платформи</div><div className="ss">Натисни будь-якого клієнта — відкриється його read-only екран статистики у тому самому стилі, що й у клієнтському VARANGYM.</div></div>
+      <div className="grid2">
+        <Metric value={num(s.totalWorkouts)} label="тренувань за весь час"/>
+        <Metric value={num(s.workouts30d)} label="тренувань / 30д"/>
+        <Metric value={num(s.sets30d)} label="підходів / 30д"/>
+        <Metric value={num(s.active7)} label="активних / 7д"/>
+        <Metric value={num(s.active30)} label="активних / 30д"/>
+        <Metric value={num(s.active90)} label="активних / 90д"/>
+        <Metric value={num(s.weighIns)} label="записів ваги"/>
+        <Metric value={num(s.newUsers30d)} label="нових / 30д"/>
+        <Metric value={num(avg30)} label="тренувань / active user"/>
+        <Metric value={num(athletes.length)} label="профілів спортсменів"/>
+      </div>
+      <ChartCard title="Тренування · 90 днів" rows={series.activity||[]} valueKey="workouts"/>
+      <ChartCard title="Активні спортсмени · 90 днів" rows={series.activity||[]} valueKey="active_users"/>
+      <ChartCard title="Виконані підходи · 90 днів" rows={series.activity||[]} valueKey="completed_sets"/>
+      <ChartCard title="Нові профілі · 90 днів" rows={series.signups||[]} valueKey="users"/>
+      <div className="grid2">
+        <Distribution title="Країни" rows={geo?.byCountry||[]}/>
+        <Distribution title="Регіони / області" rows={geo?.byRegion||[]}/>
+      </div>
+      <Section title="Клієнти · відкрити статистику">{[...athletes].sort((a,b)=>Number(b.workouts_30d||0)-Number(a.workouts_30d||0)).map(u=>{const g=geoMap.get(u.id);return <Row key={u.id} icon="chartLine" iconTint={u.workouts_30d?'var(--acc)':'var(--grey)'} title={u.display_name} subtitle={`${u.workouts_30d||0} тренувань / 30д · ${g?.city||'місто —'}`} value={date(u.last_seen_at)} accessory="chevron" onClick={()=>setClient(u)}/>} )}</Section>
+    </>
+  }
+
+  return <AdminExerciseStudio workspaces={spaces} users={users}/>
 }
 
-function TrainerConsole({view,workspaceId,overview,analytics,invites,reload}){const [client,setClient]=useState(null),clients=overview?.clients||[];if(client)return <ClientDetail client={client} workspaceId={workspaceId} onBack={()=>setClient(null)}/>;if(view==='home')return <><div className="card"><div className="lbl2">VARANGYM · Coach</div><div className="big" style={{fontSize:28}}>Мої клієнти</div><div className="ss">Активність, прогрес і плани в одному робочому режимі.</div></div><div className="grid2"><Metric value={clients.length} label="клієнтів"/><Metric value={num((analytics?.daily||[]).reduce((n,x)=>n+Number(x.workouts||0),0))} label="тренувань / 30д"/><Metric value={invites.filter(activeInvite).length} label="активних кодів"/><Metric value={clients.filter(c=>c.workouts_7d>0).length} label="активні / 7д"/></div><div className="card"><div className="lbl2">Активність / 30 днів</div><Bars rows={analytics?.daily||[]}/></div><Section title="Остання активність">{clients.slice(0,10).map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name} subtitle={`${c.workouts_period||c.workouts_30d||0} тренувань / 30д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section></>;if(view==='people')return <><Section title={`Клієнти · ${clients.length}`}>{clients.map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name} subtitle={c.email||''} value={`${c.workouts_period||c.workouts_30d||0} / 30д`} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section><InviteBox mode="trainer" workspaceId={workspaceId} invites={invites} reload={reload}/></>;if(view==='dashboard')return <PlanAssign workspaceId={workspaceId} clients={clients}/>;if(view==='stats')return <><div className="grid2"><Metric value={clients.length} label="клієнтів"/><Metric value={clients.filter(c=>c.workouts_7d>0).length} label="активні / 7д"/><Metric value={num((analytics?.daily||[]).reduce((n,x)=>n+Number(x.workouts||0),0))} label="тренувань / 30д"/><Metric value={num((analytics?.daily||[]).reduce((n,x)=>n+Number(x.completed_sets||0),0))} label="підходів / 30д"/></div><div className="card"><div className="lbl2">Активність клієнтів</div><Bars rows={analytics?.daily||[]}/></div><Section title="Прогрес клієнтів">{clients.map(c=><Row key={c.id||c.user_id} icon="chart" title={c.display_name} subtitle={`${c.workouts_7d||0} тренувань / 7д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section></>;return <><PlanAssign workspaceId={workspaceId} clients={clients}/><div className="card"><div className="lbl2">Бібліотека вправ</div><div className="ss">Глобальні вправи + ваші власні для програм клієнтів.</div></div></>}
+function TrainerConsole({view,workspaceId,overview,analytics,invites,reload}) {
+  const [client,setClient]=useState(null)
+  const clients=overview?.clients||[]
+  if(client)return <ClientDetail client={client} workspaceId={workspaceId} onBack={()=>setClient(null)}/>
+  const daily=analytics?.daily||[]
+  const workouts=daily.reduce((n,x)=>n+Number(x.workouts||0),0)
+  const sets=daily.reduce((n,x)=>n+Number(x.completed_sets||0),0)
+  const active7=clients.filter(c=>Number(c.workouts_7d||0)>0).length
+  if(view==='home')return <>
+    <div className="card"><div className="lbl2">VARANGYM · Coach</div><div className="big" style={{fontSize:29}}>Мої клієнти</div><div className="ss">Плани, активність, прогрес і статистика в одному режимі.</div></div>
+    <div className="grid2">
+      <Metric value={clients.length} label="клієнтів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/><Metric value={num(sets)} label="підходів / 30д"/>
+      <Metric value={invites.filter(activeInvite).length} label="активних кодів"/><Metric value={clients.filter(c=>c.last_workout_at).length} label="тренувались хоча б раз"/>
+    </div>
+    <ChartCard title="Активність клієнтів · 30 днів" rows={daily} valueKey="workouts"/>
+    <ChartCard title="Підходи · 30 днів" rows={daily} valueKey="completed_sets"/>
+    <Section title="Клієнти">{clients.slice(0,10).map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name} subtitle={`${c.workouts_period||c.workouts_30d||0} тренувань / 30д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
+  </>
+  if(view==='people')return <><Section title={`Клієнти · ${clients.length}`}>{clients.map(c=><Row key={c.id||c.user_id} icon="personCircle" title={c.display_name} subtitle={c.email||''} value={`${c.workouts_period||c.workouts_30d||0} / 30д`} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section><InviteManager mode="trainer" workspaceId={workspaceId} invites={invites} reload={reload}/></>
+  if(view==='dashboard')return <PlanManagerPro mode="trainer" workspaceId={workspaceId} clients={clients}/>
+  if(view==='stats')return <>
+    <div className="grid2"><Metric value={clients.length} label="клієнтів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/><Metric value={num(sets)} label="підходів / 30д"/><Metric value={clients.filter(c=>Number(c.workouts_30d||c.workouts_period||0)>=8).length} label="8+ тренувань / 30д"/><Metric value={clients.filter(c=>!c.last_workout_at).length} label="без тренувань"/></div>
+    <ChartCard title="Тренування клієнтів" rows={daily} valueKey="workouts"/><ChartCard title="Підходи клієнтів" rows={daily} valueKey="completed_sets"/>
+    <Section title="Прогрес клієнтів">{clients.map(c=><Row key={c.id||c.user_id} icon="chartLine" title={c.display_name} subtitle={`${c.workouts_7d||0} тренувань / 7д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
+  </>
+  return <div className="card"><div className="lbl2">Вправи</div><div className="ss">Відкривай рідну бібліотеку VARANGYM з нижньої вкладки «Вправи».</div></div>
+}
 
-function BusinessConsole({view,workspaceId,insights,analytics,invites,reload}){const [client,setClient]=useState(null);if(client)return <ClientDetail client={client} workspaceId={workspaceId} onBack={()=>setClient(null)}/>;const trainers=insights?.trainers||[],clients=insights?.clients||[],billing=insights?.billing,subs=insights?.subscriptions||[];if(view==='home')return <><div className="card"><div className="lbl2">VARANGYM · Business</div><div className="big" style={{fontSize:28}}>{insights?.workspace?.name||'Організація'}</div><div className="ss">Команда, клієнти, тариф і активність.</div></div><div className="grid2"><Metric value={trainers.length} label="тренерів"/><Metric value={clients.length} label="клієнтів"/><Metric value={billing?.plan_code||'—'} label="поточний план" note={subs[0]?.status||''}/><Metric value={money(insights?.revenue?.month_cents)} label="дохід / місяць"/></div><div className="card"><div className="lbl2">Активність / 30 днів</div><Bars rows={analytics?.daily||[]}/></div></>;if(view==='people')return <><Section title={`Тренери · ${trainers.length}`}>{trainers.map(t=><Row key={t.id} icon="personCircle" title={t.display_name} subtitle={t.email||''} value={`${t.clients||0} клієнтів`}/>)}</Section><Section title={`Клієнти · ${clients.length}`}>{clients.map(c=><Row key={c.id} icon="personCircle" title={c.display_name} subtitle={c.email||''} value={`${c.workouts_30d||0} / 30д`} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section><InviteBox mode="business" workspaceId={workspaceId} invites={invites} reload={reload}/></>;if(view==='dashboard')return <><div className="grid2"><Metric value={billing?.plan_metadata?.label||billing?.plan_code||'—'} label="тариф"/><Metric value={subs[0]?.status||'—'} label="статус"/><Metric value={date(subs[0]?.trial_ends_at||subs[0]?.current_period_end)} label="наступна дата"/><Metric value={money(insights?.revenue?.lifetime_cents)} label="дохід за весь час"/></div><PlanAssign workspaceId={workspaceId} clients={clients}/></>;if(view==='stats')return <><div className="grid2"><Metric value={clients.length} label="клієнтів"/><Metric value={clients.filter(c=>c.workouts_7d>0).length} label="активні / 7д"/><Metric value={num((analytics?.daily||[]).reduce((n,x)=>n+Number(x.workouts||0),0))} label="тренувань / 30д"/><Metric value={num((analytics?.daily||[]).reduce((n,x)=>n+Number(x.completed_sets||0),0))} label="підходів / 30д"/></div><div className="card"><div className="lbl2">Активність організації</div><Bars rows={analytics?.daily||[]}/></div><Section title="Клієнти · прогрес">{clients.map(c=><Row key={c.id} icon="chart" title={c.display_name} subtitle={`${c.workouts_30d||0} тренувань / 30д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section></>;return <><PlanAssign workspaceId={workspaceId} clients={clients}/><div className="card"><div className="lbl2">Вправи організації</div><div className="ss">Організація може створювати власні вправи й використовувати глобальну бібліотеку.</div></div></>}
+function BusinessConsole({view,workspaceId,insights,analytics,invites,reload}) {
+  const [client,setClient]=useState(null)
+  const trainers=insights?.trainers||[],clients=insights?.clients||[],billing=insights?.billing,subs=insights?.subscriptions||[]
+  if(client)return <ClientDetail client={client} workspaceId={workspaceId} onBack={()=>setClient(null)}/>
+  const daily=analytics?.daily||[]
+  const workouts=daily.reduce((n,x)=>n+Number(x.workouts||0),0)
+  const sets=daily.reduce((n,x)=>n+Number(x.completed_sets||0),0)
+  const active7=clients.filter(c=>Number(c.workouts_7d||0)>0).length
+  if(view==='home')return <>
+    <div className="card"><div className="lbl2">VARANGYM · Business</div><div className="big" style={{fontSize:29}}>{insights?.workspace?.name||'Організація'}</div><div className="ss">Команда, клієнти, тариф, дохід і активність.</div></div>
+    <div className="grid2">
+      <Metric value={trainers.length} label="тренерів"/><Metric value={clients.length} label="клієнтів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/>
+      <Metric value={billing?.plan_metadata?.label||billing?.plan_code||'—'} label="поточний план"/><Metric value={subs[0]?.status||'—'} label="статус підписки"/><Metric value={money(insights?.revenue?.month_cents)} label="дохід / місяць"/><Metric value={money(insights?.revenue?.lifetime_cents)} label="дохід за весь час"/>
+    </div>
+    <ChartCard title="Активність організації" rows={daily} valueKey="workouts"/><ChartCard title="Підходи організації" rows={daily} valueKey="completed_sets"/>
+  </>
+  if(view==='people')return <><Section title={`Тренери · ${trainers.length}`}>{trainers.map(t=><Row key={t.id} icon="personCircle" title={t.display_name} subtitle={t.email||''} value={`${t.clients||0} клієнтів`}/>)}</Section><Section title={`Клієнти · ${clients.length}`}>{clients.map(c=><Row key={c.id} icon="personCircle" title={c.display_name} subtitle={c.email||''} value={`${c.workouts_30d||0} / 30д`} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section><InviteManager mode="business" workspaceId={workspaceId} invites={invites} reload={reload}/></>
+  if(view==='dashboard')return <><div className="grid2"><Metric value={billing?.plan_metadata?.label||billing?.plan_code||'—'} label="тариф"/><Metric value={subs[0]?.status||'—'} label="статус"/><Metric value={date(subs[0]?.trial_ends_at||subs[0]?.current_period_end)} label="наступна дата"/><Metric value={money(insights?.revenue?.lifetime_cents)} label="дохід за весь час"/></div><PlanManagerPro mode="business" workspaceId={workspaceId} clients={clients}/></>
+  if(view==='stats')return <>
+    <div className="grid2"><Metric value={clients.length} label="клієнтів"/><Metric value={trainers.length} label="тренерів"/><Metric value={active7} label="активні / 7д"/><Metric value={num(workouts)} label="тренувань / 30д"/><Metric value={num(sets)} label="підходів / 30д"/><Metric value={money(insights?.revenue?.month_cents)} label="дохід / місяць"/></div>
+    <ChartCard title="Тренування організації" rows={daily} valueKey="workouts"/><ChartCard title="Підходи організації" rows={daily} valueKey="completed_sets"/>
+    <Section title="Клієнти · прогрес">{clients.map(c=><Row key={c.id} icon="chartLine" title={c.display_name} subtitle={`${c.workouts_30d||0} тренувань / 30д`} value={date(c.last_workout_at)} accessory="chevron" onClick={()=>setClient(c)}/>)}</Section>
+  </>
+  return <div className="card"><div className="lbl2">Вправи</div><div className="ss">Відкривай рідну бібліотеку VARANGYM з нижньої вкладки «Вправи».</div></div>
+}
 
-export default function RoleConsole({mode}){
-  const nav=useNavigate(),loc=useLocation(),toast=useUI(s=>s.toast);const view=viewOf(loc.search);const [identity,setIdentity]=useState(null),[data,setData]=useState(null),[analytics,setAnalytics]=useState(null),[invites,setInvites]=useState([]),[err,setErr]=useState(''),[loading,setLoading]=useState(true),[workspaceId,setWorkspaceId]=useState('')
-  const access=useMemo(()=>platformAccess(identity),[identity]),tSpaces=useMemo(()=>trainerMemberships(identity),[identity]),bSpaces=useMemo(()=>businessMemberships(identity),[identity]),spaces=mode==='business'?bSpaces:tSpaces
-  useEffect(()=>{setRoleMode(mode);loadPlatformIdentity().then(me=>{setIdentity(me);const ss=mode==='business'?businessMemberships(me):trainerMemberships(me);setWorkspaceId(v=>v||ss[0]?.workspace_id||'')}).catch(e=>setErr(e.message))},[mode])
+export default function RoleConsole({mode}) {
+  const nav=useNavigate(),loc=useLocation()
+  const view=viewOf(loc.search)
+  const [identity,setIdentity]=useState(null)
+  const [data,setData]=useState(null)
+  const [analytics,setAnalytics]=useState(null)
+  const [geo,setGeo]=useState(null)
+  const [invites,setInvites]=useState([])
+  const [err,setErr]=useState('')
+  const [loading,setLoading]=useState(true)
+  const [workspaceId,setWorkspaceId]=useState('')
+
+  const access=useMemo(()=>platformAccess(identity),[identity])
+  const tSpaces=useMemo(()=>trainerMemberships(identity),[identity])
+  const bSpaces=useMemo(()=>businessMemberships(identity),[identity])
+  const spaces=mode==='business'?bSpaces:tSpaces
+
+  useEffect(()=>{
+    setRoleMode(mode)
+    loadPlatformIdentity().then(me=>{
+      setIdentity(me)
+      const ss=mode==='business'?businessMemberships(me):trainerMemberships(me)
+      setWorkspaceId(v=>v||ss[0]?.workspace_id||'')
+    }).catch(e=>setErr(e.message))
+  },[mode])
+
   const allowed=identity&&((mode==='admin'&&access.platformAdmin)||(mode==='business'&&access.business)||(mode==='trainer'&&access.trainer))
-  const load=async()=>{if(!identity||!allowed)return;setLoading(true);setErr('');try{if(mode==='admin'){const [i,a,c]=await Promise.all([api('/api/insights/admin'),api('/api/analytics/admin?days=30'),api('/api/invites')]);setData(i);setAnalytics(a);setInvites(c.invites||[])}else if(mode==='business'){if(!workspaceId)throw new Error('Немає business workspace');const [i,a,c]=await Promise.all([api(`/api/insights/workspace?workspaceId=${encodeURIComponent(workspaceId)}`),api(`/api/analytics/business?days=30&workspaceId=${encodeURIComponent(workspaceId)}`),api(`/api/invites?workspaceId=${encodeURIComponent(workspaceId)}`)]);setData(i);setAnalytics(a);setInvites(c.invites||[])}else{if(!workspaceId)throw new Error('Немає workspace тренера');const [o,a,c]=await Promise.all([api(`/api/coach/clients?workspaceId=${encodeURIComponent(workspaceId)}`),api(`/api/analytics/coach?days=30&workspaceId=${encodeURIComponent(workspaceId)}`),api(`/api/invites?workspaceId=${encodeURIComponent(workspaceId)}`)]);setData(o);setAnalytics(a);setInvites(c.invites||[])}}catch(e){setErr(e.message||'Помилка')}finally{setLoading(false)}}
+  const load=async()=>{
+    if(!identity||!allowed)return
+    setLoading(true);setErr('')
+    try{
+      if(mode==='admin'){
+        const [i,a,c,g]=await Promise.allSettled([api('/api/insights/admin'),api('/api/analytics/admin?days=90'),api('/api/invites'),api('/api/geo/admin')])
+        if(i.status!=='fulfilled')throw i.reason
+        setData(i.value)
+        if(a.status==='fulfilled')setAnalytics(a.value)
+        if(c.status==='fulfilled')setInvites(c.value.invites||[])
+        if(g.status==='fulfilled')setGeo(g.value)
+      }else if(mode==='business'){
+        if(!workspaceId)throw new Error('Немає business workspace')
+        const [i,a,c]=await Promise.all([
+          api(`/api/insights/workspace?workspaceId=${encodeURIComponent(workspaceId)}`),
+          api(`/api/analytics/business?days=30&workspaceId=${encodeURIComponent(workspaceId)}`),
+          api(`/api/invites?workspaceId=${encodeURIComponent(workspaceId)}`)
+        ])
+        setData(i);setAnalytics(a);setInvites(c.invites||[])
+      }else{
+        if(!workspaceId)throw new Error('Немає workspace тренера')
+        const [o,a,c]=await Promise.all([
+          api(`/api/coach/clients?workspaceId=${encodeURIComponent(workspaceId)}`),
+          api(`/api/analytics/coach?days=30&workspaceId=${encodeURIComponent(workspaceId)}`),
+          api(`/api/invites?workspaceId=${encodeURIComponent(workspaceId)}`)
+        ])
+        setData(o);setAnalytics(a);setInvites(c.invites||[])
+      }
+    }catch(e){setErr(e.message||'Помилка')}
+    finally{setLoading(false)}
+  }
   useEffect(()=>{if(allowed)load()},[allowed,workspaceId,mode])
   if(identity&&!allowed){nav('/home',{replace:true});return null}
   const label=mode==='admin'?'Адмін':mode==='business'?'Бізнес':'Тренер'
-  return <div className="narrow"><div className="hdr"><button className="iconbtn" onClick={()=>{setRoleMode(null);nav('/home')}} aria-label="Клієнтський режим"><Icon name="chevronLeft"/></button><div style={{flex:1,marginLeft:10}}><h1>{label}</h1><div className="sub">{identity?.user?.display_name||''} · VARANGYM</div></div><button className="iconbtn" onClick={load} aria-label="Оновити"><Icon name="reset"/></button></div>{spaces.length>1&&<div className="card" style={{padding:8}}><select className="field" value={workspaceId} onChange={e=>setWorkspaceId(e.target.value)}>{spaces.map(x=><option key={`${x.workspace_id}:${x.role}`} value={x.workspace_id}>{x.workspace_name} · {x.role}</option>)}</select></div>}{loading&&!data?<div className="empty">Завантаження…</div>:err?<ErrorBox text={err} retry={load}/>:mode==='admin'?<AdminConsole view={view} data={data} analytics={analytics} invites={invites} reload={load}/>:mode==='business'?<BusinessConsole view={view} workspaceId={workspaceId} insights={data} analytics={analytics} invites={invites} reload={load}/>:<TrainerConsole view={view} workspaceId={workspaceId} overview={data} analytics={analytics} invites={invites} reload={load}/>}</div>
+
+  return <div className="narrow">
+    <div className="hdr">
+      <button className="iconbtn" onClick={()=>{setRoleMode(null);nav('/home')}} aria-label="Клієнтський режим"><Icon name="chevronLeft"/></button>
+      <div style={{flex:1,marginLeft:10}}><h1>{label}</h1><div className="sub">{identity?.user?.display_name||''} · VARANGYM</div></div>
+      <button className="iconbtn" onClick={load} aria-label="Оновити"><Icon name="reset"/></button>
+    </div>
+    {spaces.length>1&&<div className="card" style={{padding:8}}><select className="field" value={workspaceId} onChange={e=>setWorkspaceId(e.target.value)}>{spaces.map(x=><option key={`${x.workspace_id}:${x.role}`} value={x.workspace_id}>{x.workspace_name} · {x.role}</option>)}</select></div>}
+    {loading&&!data?<div className="empty">Завантаження…</div>:err?<ErrorBox text={err} retry={load}/>:mode==='admin'
+      ? <AdminConsole view={view} data={data} geo={geo} analytics={analytics} invites={invites} reload={load}/>
+      : mode==='business'
+        ? <BusinessConsole view={view} workspaceId={workspaceId} insights={data} analytics={analytics} invites={invites} reload={load}/>
+        : <TrainerConsole view={view} workspaceId={workspaceId} overview={data} analytics={analytics} invites={invites} reload={load}/>}
+  </div>
 }
