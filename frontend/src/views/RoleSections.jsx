@@ -109,10 +109,11 @@ function AdminDirectory({kind}){
 function BusinessDirectory({kind}){
   const nav=useNavigate(),[identity,setIdentity]=useState(null),[workspaceId,setWorkspaceId]=useState(''),[spaces,setSpaces]=useState([]),[data,setData]=useState(null),[err,setErr]=useState('')
   const loadIdentity=async()=>{try{const me=await loadPlatformIdentity();setIdentity(me);const ms=businessMemberships(me),uniq=[];const seen=new Set();for(const m of ms){if(!seen.has(m.workspace_id)){seen.add(m.workspace_id);uniq.push({id:m.workspace_id,name:m.workspace_name,role:m.role})}}setSpaces(uniq);setWorkspaceId(v=>v||uniq[0]?.id||'')}catch(e){setErr(e.message||'Помилка')}}
+  const loadWorkspace=async()=>{if(!workspaceId)return;setData(null);setErr('');try{setData(await api(`/api/insights/workspace?workspaceId=${encodeURIComponent(workspaceId)}`))}catch(e){setErr(e.message||'Помилка')}}
   useEffect(()=>{loadIdentity()},[])
-  useEffect(()=>{if(!workspaceId)return;setData(null);setErr('');api(`/api/insights/workspace?workspaceId=${encodeURIComponent(workspaceId)}`).then(setData).catch(e=>setErr(e.message||'Помилка'))},[workspaceId,kind])
+  useEffect(()=>{loadWorkspace()},[workspaceId,kind])
   if(!identity||(!data&&!err))return <Loading/>
-  if(err&&!data)return <Failure text={err} retry={()=>setWorkspaceId(x=>x)}/>
+  if(err&&!data)return <Failure text={err} retry={loadWorkspace}/>
   const trainers=data?.trainers||[],clients=data?.clients||[]
   return <><HeaderCard kicker="VARANGYM Business" title={kind==='trainers'?'Тренери':'Клієнти'} subtitle={kind==='trainers'?'Команда тренерів і навантаження по клієнтах.':'Клієнти організації та їхня активність.'} tag={kind==='trainers'?`${trainers.length} трен.`:`${clients.length} кл.`}/>{spaces.length>1&&<div className="card"><select className="field" value={workspaceId} onChange={e=>setWorkspaceId(e.target.value)}>{spaces.map(w=><option key={w.id} value={w.id}>{w.name} · {w.role}</option>)}</select></div>}{kind==='trainers'?<Section title={`Тренери · ${trainers.length}`}>{trainers.length?trainers.map(t=><Row key={t.id} icon="personCircle" iconTint="var(--acc)" title={t.display_name} subtitle={`${t.email||'без email'} · останній вхід ${date(t.last_seen_at)}`} value={`${t.clients||0} клієнтів`}/>):<Row title="Тренерів ще немає"/>}</Section>:<><Section title={`Клієнти · ${clients.length}`}>{clients.length?clients.map(c=><Row key={c.id} icon="personCircle" iconTint={Number(c.workouts_30d||0)>0?'var(--acc)':'var(--grey)'} title={c.display_name} subtitle={c.email||'без email'} value={`${c.workouts_30d||0} / 30д`} accessory="chevron" onClick={()=>nav(roleRoute('business','people'))}/>):<Row title="Клієнтів ще немає"/>}</Section><Button onClick={()=>nav(roleRoute('business','people'))}>Відкрити повний клієнтський менеджер</Button></>}</>
 }
@@ -133,6 +134,7 @@ export default function RoleSections({mode}){
   if(mode==='admin'&&view==='invites')return <div className="narrow"><InviteCenter mode="admin"/></div>
   if(mode==='business'&&view==='business-trainers')return <div className="narrow"><BusinessDirectory kind="trainers"/></div>
   if(mode==='business'&&view==='business-clients')return <div className="narrow"><BusinessDirectory kind="clients"/></div>
+  if(mode==='business'&&view==='business-codes')return <div className="narrow"><InviteCenter mode="business"/></div>
   if(mode==='business'&&view==='business-plans')return <div className="narrow"><BusinessPlans/></div>
   if(mode==='business'&&view==='business-payments')return <div className="narrow"><HeaderCard kicker="VARANGYM Business" title="Оплата й тариф" subtitle="Поточний план, ліміти, перехід між тарифами та керування підпискою."/><SubscriptionPanel/></div>
   if(mode==='trainer'&&view==='trainer-codes')return <div className="narrow"><InviteCenter mode="trainer"/></div>
