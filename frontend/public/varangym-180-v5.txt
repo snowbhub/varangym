@@ -1,0 +1,1 @@
+Raster VARANGYM 180px icon cache key v5; binary asset is generated from frontend/resources/icon.svg during release asset preparation.
