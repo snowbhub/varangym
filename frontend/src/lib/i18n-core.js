@@ -37,8 +37,41 @@ export const dateLocale = () => DATE_LOCALES[lang] || 'en-GB'
 export const getVersion = () => version
 
 const brandText = value => String(value ?? '').replaceAll('openGym', 'VARANGYM').replaceAll('OpenGym', 'VARANGYM').replaceAll('opengym', 'varangym')
-
 const cleanExerciseName = value => String(value ?? '').replaceAll('§', '').replace(/\s+/g, ' ').replace(/\s+([,;:)])/g, '$1').trim()
+
+// The catalogue is compositional, so its last-resort word translator can be grammatically literal
+// ("one arm" -> "однією рука"). This final pass fixes only constructions that are unambiguous in
+// gym terminology. It intentionally does not invent a different exercise when the source is unclear.
+const polishExerciseName = (value, currentLang) => {
+  let s = cleanExerciseName(value)
+  if (currentLang === 'uk') {
+    const rules = [
+      [/\bоднією рука\b/gi,'однією рукою'],[/\bдвома рука\b/gi,'двома руками'],[/\bпрямими рука\b/gi,'прямими руками'],
+      [/\bпочергов(?:ий|а) рука\b/gi,'почерговими руками'],[/\bодносторонній рука\b/gi,'однією рукою'],
+      [/\bпідйом рука\b/gi,'підйом рук'],[/\bзгинання рука\b/gi,'згинання рук'],[/\bрозгинання рука\b/gi,'розгинання рук'],
+      [/\bрозведення рука\b/gi,'розведення рук'],[/\bзведення рука\b/gi,'зведення рук'],[/\bвідведення рука\b/gi,'відведення рук'],
+      [/\bобертання рука\b/gi,'обертання рук'],[/\bротація рука\b/gi,'обертання рук'],[/\bмахи? рука\b/gi,'махи руками'],
+      [/\bрозтягнення рука\b/gi,'розтягування рук'],[/\bрозтягування рука\b/gi,'розтягування рук'],[/\bрука кола\b/gi,'кола руками'],
+      [/\bверхній рука\b/gi,'плече'],[/\bнижній рука\b/gi,'передпліччя'],
+    ]
+    for (const [a,b] of rules) s=s.replace(a,b)
+    if (/^рука$/i.test(s)) s='Вправа для рук'
+  }
+  if (currentLang === 'ru') {
+    const rules = [
+      [/\bодной рука\b/gi,'одной рукой'],[/\bдвумя рука\b/gi,'двумя руками'],[/\bпрямыми рука\b/gi,'прямыми руками'],
+      [/\bпоочерёдный рука\b/gi,'поочерёдно руками'],[/\bодносторонний рука\b/gi,'одной рукой'],
+      [/\bподъём рука\b/gi,'подъём рук'],[/\bсгибание рука\b/gi,'сгибание рук'],[/\bразгибание рука\b/gi,'разгибание рук'],
+      [/\bразведение рука\b/gi,'разведение рук'],[/\bсведение рука\b/gi,'сведение рук'],[/\bотведение рука\b/gi,'отведение рук'],
+      [/\bвращение рука\b/gi,'вращение рук'],[/\bротация рука\b/gi,'вращение рук'],[/\bмахи? рука\b/gi,'махи руками'],
+      [/\bрастяжка рука\b/gi,'растяжка рук'],[/\bрука круги\b/gi,'круги руками'],
+      [/\bверхний рука\b/gi,'плечо'],[/\bнижний рука\b/gi,'предплечье'],
+    ]
+    for (const [a,b] of rules) s=s.replace(a,b)
+    if (/^рука$/i.test(s)) s='Упражнение для рук'
+  }
+  return cleanExerciseName(s)
+}
 
 export function t(s, ...args) {
   let v = dict[s] || s
@@ -61,9 +94,9 @@ const generatedExerciseName = (ex, currentLang) => {
 export const exerciseNameFor = ex => {
   if (!ex) return ''
   const curated = localizedExerciseOverride(ex, lang)
-  if (curated) return cleanExerciseName(curated)
+  if (curated) return polishExerciseName(curated, lang)
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (lang === 'uk' || lang === 'ru') return cleanExerciseName(translated || generatedExerciseName(ex, lang) || ex.n || '')
+  if (lang === 'uk' || lang === 'ru') return polishExerciseName(translated || generatedExerciseName(ex, lang) || ex.n || '', lang)
   if (!translated) return cleanExerciseName(ex.n || '')
   return cleanExerciseName(translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en') ? translated : `${translated} (${ex.n})`)
 }
@@ -72,8 +105,8 @@ export const exerciseNameSearchText = ex => {
   if (!ex) return ''
   const curated = localizedExerciseOverride(ex, lang)
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (curated) return `${cleanExerciseName(curated)} ${ex.n || ''}`.trim()
-  if (lang === 'uk' || lang === 'ru') return `${cleanExerciseName(translated || generatedExerciseName(ex, lang) || ex.n || '')} ${ex.n || ''}`.trim()
+  if (curated) return `${polishExerciseName(curated, lang)} ${ex.n || ''}`.trim()
+  if (lang === 'uk' || lang === 'ru') return `${polishExerciseName(translated || generatedExerciseName(ex, lang) || ex.n || '', lang)} ${ex.n || ''}`.trim()
   return translated ? `${cleanExerciseName(translated)} ${ex.n}` : (ex.n || '')
 }
 
