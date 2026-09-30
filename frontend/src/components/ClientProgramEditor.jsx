@@ -121,7 +121,7 @@ export default function ClientProgramEditor({workspaceId,clients=[]}){
         {(d.exercises||[]).map((e,ei)=>{
           const source=EXIDX[e.id]
           return <div className="card" key={`${e.id}:${ei}`} style={{margin:'8px 0',padding:12}}>
-            <div className="row between"><div className="row" style={{gap:10,minWidth:0}}>{source&&<Thumb ex={source}/>}<div style={{minWidth:0}}><div className="ttl">{source?titleOf(source):(e.name||e.id)}</div><div className="ss">{source?`${source.tg||source.bp||'—'} · ${source.eq||'—'}`:e.id}</div></div></div><button className="iconbtn" style={{color:'var(--red)'}} onClick={()=>removeExercise(di,ei)}>×</button></div>
+            <div className="row between"><div className="row" style={{gap:10,minWidth:0}}>{source&&<Thumb ex={source} bodyOverride={clientBody}/>}<div style={{minWidth:0}}><div className="ttl">{source?titleOf(source):(e.name||e.id)}</div><div className="ss">{source?`${source.tg||source.bp||'—'} · ${source.eq||'—'}`:e.id}</div></div></div><button className="iconbtn" style={{color:'var(--red)'}} onClick={()=>removeExercise(di,ei)}>×</button></div>
             <div className="grid2" style={{marginTop:9}}>
               <label className="small muted">Підходи<input className="field" type="number" min="1" value={e.sets} onChange={x=>updateExercise(di,ei,'sets',x.target.value)}/></label>
               <label className="small muted">Повторення<input className="field" type="number" min="1" value={e.reps} onChange={x=>updateExercise(di,ei,'reps',x.target.value)}/></label>
@@ -138,7 +138,7 @@ export default function ClientProgramEditor({workspaceId,clients=[]}){
         <div className="small dim" style={{margin:'4px 0 8px'}}>Каталог автоматично не показує протилежний статевий варіант анімації для профілю клієнта.</div>
         <input className="field" value={q} onChange={e=>setQ(e.target.value)} placeholder="Пошук UA / EN / мʼяз / обладнання…"/>
       </div>
-      {found.length>0&&<Section title="Результати пошуку">{found.map(ex=><Row key={ex.id} title={titleOf(ex)} subtitle={`${ex.tg||ex.bp||'—'} · ${ex.eq||'—'}`} value="+" onClick={()=>addExercise(ex)}><span style={{marginRight:10}}><Thumb ex={ex}/></span></Row>)}</Section>}
+      {found.length>0&&<Section title="Результати пошуку">{found.map(ex=><Row key={ex.id} title={titleOf(ex)} subtitle={`${ex.tg||ex.bp||'—'} · ${ex.eq||'—'}`} value="+" onClick={()=>addExercise(ex)}><span style={{marginRight:10}}><Thumb ex={ex} bodyOverride={clientBody}/></span></Row>)}</Section>}
       {needle&&found.length===0&&<div className="empty">Нічого не знайдено серед сумісних вправ.</div>}
     </div>)}
 
