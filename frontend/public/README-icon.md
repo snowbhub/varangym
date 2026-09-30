@@ -1,1 +1,0 @@
-Do not edit varangym-180.png by hand. Generate it from frontend/resources/icon.svg when the source mark changes.
