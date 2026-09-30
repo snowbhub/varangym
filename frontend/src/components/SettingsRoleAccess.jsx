@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api.js'
@@ -40,28 +40,32 @@ export default function SettingsRoleAccess(){
     ? (billing?.workspaceSubscriptions||[]).find(x=>x.workspace_id===current.subject_id&&x.plan_code===current.plan_code) || (billing?.workspaceSubscriptions||[]).find(x=>x.workspace_id===current.subject_id)
     : (billing?.userSubscriptions||[]).find(x=>x.plan_code===current?.plan_code) || billing?.userSubscriptions?.[0]
 
-  // Settings is inherited from openGym. Instead of duplicating that large screen, mount the
-  // VARANGYM role shortcuts into its account group immediately after the signed-in name row.
-  // This keeps the buttons exactly where a user expects account-level mode switching to live.
-  useEffect(()=>{
-    if(!identity?.user?.display_name||!access.canManage)return
-    const find=()=>{
+  // Keep role switching inside the normal Account section, but do the DOM bridge in a layout
+  // effect so there is no visible "late insert" or polling flicker. MutationObserver is only a
+  // fallback for a slow Settings subtree commit; it disconnects immediately after the host exists.
+  useLayoutEffect(()=>{
+    if(!identity?.user?.display_name||!access.canManage){setQuickHost(null);return}
+    let observer=null
+    const mount=()=>{
       const name=identity.user.display_name.trim()
       const rows=[...document.querySelectorAll('.sect .lrow')]
       const accountRow=rows.find(r=>r.querySelector('.lrow-t')?.textContent?.trim()===name)
       const body=accountRow?.closest('.sect-b')
       if(!accountRow||!body)return false
       const oldAdmin=[...body.children].find(el=>el!==accountRow&&/admin|адмін/i.test(el.querySelector?.('.lrow-t')?.textContent||''))
-      if(oldAdmin)oldAdmin.dataset.vgHidden='1',oldAdmin.style.display='none'
+      if(oldAdmin){oldAdmin.dataset.vgHidden='1';oldAdmin.style.display='none'}
       let host=body.querySelector(':scope > .vg-role-quick-host')
       if(!host){host=document.createElement('div');host.className='vg-role-quick-host';accountRow.insertAdjacentElement('afterend',host)}
       setQuickHost(host)
+      observer?.disconnect()
       return true
     }
-    if(find())return()=>{}
-    const id=setInterval(()=>{if(find())clearInterval(id)},80)
-    const stop=setTimeout(()=>clearInterval(id),2500)
-    return()=>{clearInterval(id);clearTimeout(stop)}
+    if(!mount()){
+      const root=document.getElementById('app')||document.body
+      observer=new MutationObserver(()=>mount())
+      observer.observe(root,{childList:true,subtree:true})
+    }
+    return()=>observer?.disconnect()
   },[identity,access.canManage])
 
   useEffect(()=>()=>{
