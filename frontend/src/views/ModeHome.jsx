@@ -1,15 +1,26 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import Home from './Home.jsx'
 import RoleConsole from './RoleConsole.jsx'
 import Icon from '../components/Icon.jsx'
-import { getRoleMode } from '../lib/role-mode.js'
+import { getRoleMode, setRoleMode } from '../lib/role-mode.js'
 
 const LABEL={admin:'Admin',business:'Business',trainer:'Coach'}
 const SUB={admin:'Керування платформою',business:'Керування організацією',trainer:'Керування клієнтами'}
 
 export function RoleModeRoot({mode}){
   const nav=useNavigate()
+  const loc=useLocation()
+
+  // /admin, /trainer and /business are kept only as compatibility entry points.
+  // The role itself is a mode of the main VARANGYM app, not a nested page. Once selected,
+  // all management views live under the normal /home shell and Settings switches modes.
+  useEffect(()=>{
+    setRoleMode(mode)
+    if(loc.pathname!=='/home')nav(`/home${loc.search||''}`,{replace:true})
+  },[mode])
+  if(loc.pathname!=='/home')return null
+
   return <div className="vg-role-mode-root">
     <div className="narrow vg-role-mode-header">
       <div className="hdr">
