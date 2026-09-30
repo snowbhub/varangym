@@ -53,7 +53,7 @@ export default function Library() {
   const [bp, setBp] = useState('')
   const [eq, setEq] = useState('')
   const [showAll, setShowAll] = useState(false)
-  const [shown, setShown] = useState(40)
+  const [shown, setShown] = useState(20)
   const bpStrip = useRef(null), eqStrip = useRef(null)
   const profile = activeProfile(S)
   const body = S.body === 'female' ? 'female' : 'male'
@@ -76,7 +76,7 @@ export default function Library() {
       <Button size="sm" variant="tinted" icon="target" onClick={() => nav('/muscles')}>{t('By muscle')}</Button>
     </div>
     <div className="search" style={{ marginBottom: 10 }}><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
-      <input className="input" placeholder={t('Search…')} value={q} onChange={e => { setQ(e.target.value); setShown(40) }} /></div>
+      <input className="input" placeholder={t('Search…')} value={q} onChange={e => { setQ(e.target.value); setShown(20) }} /></div>
     {profile && <div className="small dim row" style={{ margin: '-4px 2px 10px', gap: 6, alignItems: 'center' }}>
       <Icon name="dumbbell" style={{ fontSize: 13 }} />
       {showAll ? t('Showing all equipment') : t('Showing what you have in "{0}"', profile.name)}
@@ -85,12 +85,12 @@ export default function Library() {
       </button>
     </div>}
     <div className="chips" ref={bpStrip} style={{ marginBottom: eqOpts.length > 1 ? 8 : 12 }}>
-      <button className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setEq(''); setShown(40) }}>{t('All')}</button>
-      {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setShown(40) }}>{t(b)}</button>)}
+      <button className={'chip nocap' + (!bp ? ' on' : '')} onClick={() => { setBp(''); setEq(''); setShown(20) }}>{t('All')}</button>
+      {BODYPARTS.map(b => <button key={b} className={'chip' + (bp === b ? ' on' : '')} onClick={() => { setBp(b); setShown(20) }}>{t(b)}</button>)}
     </div>
     {eqOpts.length > 1 && <div className="chips" ref={eqStrip} style={{ marginBottom: 12 }}>
-      <button className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(40) }}>{t('Any equipment')}</button>
-      {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(40) }}>{t(x)}</button>)}
+      <button className={'chip nocap' + (!eqOn ? ' on' : '')} onClick={() => { setEq(''); setShown(20) }}>{t('Any equipment')}</button>
+      {eqOpts.map(x => <button key={x} className={'chip' + (eqOn === x ? ' on' : '')} onClick={() => { setEq(x); setShown(20) }}>{t(x)}</button>)}
     </div>}
     <div className="list">
       <div className="item" {...tappable(() => customExSheet(null, ex => exerciseDetailSheet(ex), q.trim()))}>
@@ -101,7 +101,7 @@ export default function Library() {
         const best = bestWeightFor(S, e.id)
         return <div key={e.id} className="item" {...tappable(() => exerciseDetailSheet(e))}>
           <Thumb ex={e} />
-          <div className="grow"><div className="tt capitalize">{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss capitalize">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
+          <div className="grow"><div className="tt">{isFav(S, e.id) && <Icon name="starFill" className="fav-star" />}{exerciseNameFor(e)}</div><div className="ss">{t(MUSCLE_NAME[e.tg] || e.tg || e.bp)} · {t(e.eq)}</div></div>
           {best > 0 && <span className="tag acc">{fmtNum(best)}</span>}
           <OfflineExerciseButton ex={e} />
           <Button size="sm" variant="tinted" icon="plus" onClick={ev => { ev.stopPropagation(); addToRoutineSheet(e) }}>{t('Plan')}</Button>
@@ -109,6 +109,6 @@ export default function Library() {
       })}
       {f.length === 0 && <div className="empty"><div className="ico"><Icon name="magnifier" /></div>{t('No match')}</div>}
     </div>
-    {f.length > shown && <><div style={{ height: 10 }} /><Button onClick={() => setShown(s => s + 40)}>{t('Show more')}</Button></>}
+    {f.length > shown && <><div style={{ height: 10 }} /><Button onClick={() => setShown(s => s + 20)}>{t('Show more')}</Button></>}
   </>
 }
