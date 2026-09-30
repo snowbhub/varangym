@@ -37,6 +37,7 @@ import Muscles from './views/Muscles.jsx'
 import Settings from './views/Settings.jsx'
 import Admin from './views/Admin.jsx'
 import RoleConsole from './views/RoleConsole.jsx'
+import RoleLibrary from './views/RoleLibrary.jsx'
 import CoachChat from './views/CoachChat.jsx'
 import CoachIntake from './views/CoachIntake.jsx'
 import CoachSetup from './views/CoachSetup.jsx'
@@ -127,6 +128,8 @@ function Shell() {
               <Route path="/library" element={<Library />} />
               <Route path="/muscles" element={<Muscles />} />
               <Route path="/settings" element={<><Settings />{user && <SettingsRoleAccess />}</>} />
+              <Route path="/trainer/exercises" element={<RoleLibrary mode="trainer" />} />
+              <Route path="/business/exercises" element={<RoleLibrary mode="business" />} />
               <Route path="/trainer" element={<RoleConsole mode="trainer" />} />
               <Route path="/business" element={<RoleConsole mode="business" />} />
               <Route path="/admin" element={<RoleConsole mode="admin" />} />
