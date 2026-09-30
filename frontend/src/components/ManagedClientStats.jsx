@@ -1,5 +1,6 @@
 import ClientStatsMirror from './ClientStatsMirror.jsx'
 import ClientEffortReadOnly from './ClientEffortReadOnly.jsx'
+import ClientHistoryReadOnly from './ClientHistoryReadOnly.jsx'
 
 export default function ManagedClientStats({state,client}) {
   return <>
@@ -12,5 +13,6 @@ export default function ManagedClientStats({state,client}) {
     <style>{`.managed-client-stats > .card:first-child{display:none!important}`}</style>
     <div className="managed-client-stats"><ClientStatsMirror state={state} client={client}/></div>
     <ClientEffortReadOnly state={state}/>
+    <ClientHistoryReadOnly state={state}/>
   </>
 }
