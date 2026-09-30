@@ -29,45 +29,22 @@ function OfflineExerciseButton({ ex }) {
   }, [ex.id, ex.img, ex.gif])
 
   if (!offlineMediaSupported() || (!ex.img && !ex.gif)) return null
-
   const toggle = async ev => {
-    ev.stopPropagation()
-    if (busy) return
-    setBusy(true)
+    ev.stopPropagation(); if (busy) return; setBusy(true)
     try {
-      if (cached) {
-        await removeExerciseOffline(ex)
-        setCached(false)
-        toast(t('Removed from offline downloads'))
-      } else {
-        await downloadExerciseOffline(ex)
-        setCached(true)
-        toast(t('Exercise downloaded for offline use'))
-      }
-    } catch (e) {
-      toast(e.message || t('Could not download exercise'))
-    }
+      if (cached) { await removeExerciseOffline(ex); setCached(false); toast(t('Removed from offline downloads')) }
+      else { await downloadExerciseOffline(ex); setCached(true); toast(t('Exercise downloaded for offline use')) }
+    } catch (e) { toast(e.message || t('Could not download exercise')) }
     setBusy(false)
   }
-
-  return <button
-    className="iconbtn"
-    aria-label={cached ? t('Available offline') : t('Download for offline use')}
-    title={cached ? t('Available offline') : t('Download for offline use')}
-    disabled={busy}
-    onClick={toggle}
-    style={{
-      flex: '0 0 auto',
-      width: 38,
-      height: 38,
-      color: cached ? 'var(--acc)' : 'var(--muted)',
-      background: cached ? 'color-mix(in srgb, var(--acc) 14%, transparent)' : 'transparent',
-      opacity: busy ? .45 : 1,
-      transition: 'color .18s ease, background .18s ease, transform .18s ease',
-      transform: cached ? 'scale(1.02)' : 'scale(1)'
-    }}
-  ><Icon name="download" /></button>
+  return <button className="iconbtn" aria-label={cached ? t('Available offline') : t('Download for offline use')}
+    title={cached ? t('Available offline') : t('Download for offline use')} disabled={busy} onClick={toggle}
+    style={{flex:'0 0 auto',width:38,height:38,color:cached?'var(--acc)':'var(--muted)',background:'transparent',opacity:busy?.42:1,transition:'color .18s ease,transform .18s ease',transform:busy?'scale(.88)':cached?'scale(1.05)':'scale(1)'}}>
+    <Icon name="download" />
+  </button>
 }
+
+const genderTag = ex => /\(female\)\s*$/i.test(ex?.n||'') ? 'female' : /\(male\)\s*$/i.test(ex?.n||'') ? 'male' : 'unisex'
 
 export default function Library() {
   const nav = useNavigate()
@@ -79,17 +56,23 @@ export default function Library() {
   const [shown, setShown] = useState(40)
   const bpStrip = useRef(null), eqStrip = useRef(null)
   const profile = activeProfile(S)
-  const localized = allExercises(S).filter(overrideActive).map(e => effectiveExercise(e, S.lang || 'en'))
+  const body = S.body === 'female' ? 'female' : 'male'
+  // ExerciseDB carries explicit male/female variants for a portion of the catalogue. Do not
+  // show the opposite-body animation when the profile has chosen a body presentation.
+  const raw = allExercises(S).filter(overrideActive).filter(e => {
+    const g = genderTag(e)
+    return g === 'unisex' || g === body || String(e.id||'').startsWith('custom-')
+  })
+  const localized = raw.map(e => effectiveExercise(e, S.lang || 'en', body))
   const base = searchExercises(localized.filter(e => !bp || e.bp === bp), q)
   const eqFiltered = (profile && !showAll) ? base.filter(e => exAvailable(S, e)) : base
   const eqOpts = equipmentOf(eqFiltered)
   const eqOn = eqOpts.includes(eq) ? eq : ''
   const f = sortFavouritesFirst(eqOn ? eqFiltered.filter(e => e.eq === eqOn) : eqFiltered, S)
-  useRevealActiveChip(bpStrip, bp)
-  useRevealActiveChip(eqStrip, eqOn)
+  useRevealActiveChip(bpStrip, bp); useRevealActiveChip(eqStrip, eqOn)
 
   return <>
-    <div className="hdr"><div><h1>{t('Exercises')}</h1><div className="sub">{t('{0} exercises with animations', EXDB.length)}</div></div>
+    <div className="hdr"><div><h1>{t('Exercises')}</h1><div className="sub">{t('{0} exercises with animations', f.length || EXDB.length)}</div></div>
       <Button size="sm" variant="tinted" icon="target" onClick={() => nav('/muscles')}>{t('By muscle')}</Button>
     </div>
     <div className="search" style={{ marginBottom: 10 }}><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
