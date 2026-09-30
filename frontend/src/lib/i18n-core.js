@@ -1,5 +1,6 @@
 import { ukExerciseName } from './uk-exercise-name.js'
 import { ruExerciseName } from './ru-exercise-name.js'
+import { popularExerciseName } from './exercise-popular-name.js'
 import { localizedExerciseOverride } from './exercise-overrides-core.js'
 
 export const LANGS = {
@@ -63,13 +64,20 @@ export function t(s, ...args) {
 
 export const instrFor = ex => (instr && instr[ex.id]) || ex.st || []
 
+const generatedExerciseName = (ex, currentLang) => {
+  const popular = popularExerciseName(ex?.n || '', currentLang)
+  if (popular) return popular
+  if (currentLang === 'uk') return ukExerciseName(ex?.n || '')
+  if (currentLang === 'ru') return ruExerciseName(ex?.n || '')
+  return null
+}
+
 export const exerciseNameFor = ex => {
   if (!ex) return ''
   const curated = localizedExerciseOverride(ex, lang)
   if (curated) return cleanExerciseName(curated)
   const translated = exerciseNames && exerciseNames[ex.id]
-  if (lang === 'uk') return cleanExerciseName(translated || ukExerciseName(ex.n || ''))
-  if (lang === 'ru') return cleanExerciseName(translated || ruExerciseName(ex.n || ''))
+  if (lang === 'uk' || lang === 'ru') return cleanExerciseName(translated || generatedExerciseName(ex, lang) || ex.n || '')
   if (!translated) return cleanExerciseName(ex.n || '')
   return cleanExerciseName(translated.toLocaleLowerCase(lang) === ex.n.toLocaleLowerCase('en')
     ? translated
@@ -81,8 +89,7 @@ export const exerciseNameSearchText = ex => {
   const curated = localizedExerciseOverride(ex, lang)
   const translated = exerciseNames && exerciseNames[ex.id]
   if (curated) return `${cleanExerciseName(curated)} ${ex.n || ''}`.trim()
-  if (lang === 'uk') return `${cleanExerciseName(translated || ukExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
-  if (lang === 'ru') return `${cleanExerciseName(translated || ruExerciseName(ex.n || ''))} ${ex.n || ''}`.trim()
+  if (lang === 'uk' || lang === 'ru') return `${cleanExerciseName(translated || generatedExerciseName(ex, lang) || ex.n || '')} ${ex.n || ''}`.trim()
   return translated ? `${cleanExerciseName(translated)} ${ex.n}` : (ex.n || '')
 }
 
