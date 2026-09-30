@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api.js'
-import { CATALOGUE } from '../lib/exercises.js'
+import { CATALOGUE, gifSrc, imgSrc } from '../lib/exercises.js'
 import { ukExerciseName } from '../lib/uk-exercise-name.js'
 import { ruExerciseName } from '../lib/ru-exercise-name.js'
+import { ukrainianizeInstructions } from '../lib/uk-instructions.js'
 import { loadExerciseOverrides } from '../lib/exercise-overrides.js'
 import { useUI } from '../store/useUI.js'
 import { Thumb } from './Media.jsx'
@@ -19,6 +20,16 @@ const genderOf = ex => {
   return 'unisex'
 }
 const cleanLines = v => Array.isArray(v) ? v.join('\n') : String(v||'')
+const stepArray = v => Array.isArray(v) ? v : String(v||'').split('\n').map(x=>x.trim()).filter(Boolean)
+const mediaValue=(draft,body,kind)=>{
+  const sex=body==='female'?'Female':'Male'
+  return draft?.[`${kind}${sex}`]||draft?.[kind]||''
+}
+const previewExercise=(selected,draft,body)=>({
+  ...selected,
+  img:mediaValue(draft,body,'image')||selected.img,
+  gif:mediaValue(draft,body,'gif')||selected.gif,
+})
 
 export default function AdminExerciseStudio({workspaces=[],users=[]}) {
   const toast=useUI(s=>s.toast)
@@ -33,6 +44,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
   const [overrides,setOverrides]=useState(new Map())
   const [selected,setSelected]=useState(null)
   const [editLang,setEditLang]=useState('uk')
+  const [previewBody,setPreviewBody]=useState('male')
   const [draft,setDraft]=useState(null)
   const [busy,setBusy]=useState(false)
 
@@ -71,11 +83,18 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
   const openExercise=async ex=>{
     setSelected(ex)
     setEditLang(locale)
+    setPreviewBody(genderOf(ex)==='female'?'female':'male')
     const o=overrides.get(ex.id)
+    let ruSteps=[]
+    try{
+      const pack=(await import('../instr/ru.js')).default||{}
+      ruSteps=stepArray(pack[ex.id])
+    }catch{}
+    const ukSteps=ruSteps.length ? (ukrainianizeInstructions({[ex.id]:ruSteps})?.[ex.id]||[]) : []
     const baseTr={
-      uk:{name:o?.translations?.uk?.name||ukExerciseName(ex.n||''),description:o?.translations?.uk?.description||'',instructions:cleanLines(o?.translations?.uk?.instructions)},
-      ru:{name:o?.translations?.ru?.name||ruExerciseName(ex.n||''),description:o?.translations?.ru?.description||'',instructions:cleanLines(o?.translations?.ru?.instructions)},
-      en:{name:o?.translations?.en?.name||ex.n||'',description:o?.translations?.en?.description||ex.desc||'',instructions:cleanLines(o?.translations?.en?.instructions||ex.st)}
+      uk:{name:o?.translations?.uk?.name||ukExerciseName(ex.n||''),description:o?.translations?.uk?.description||'',instructions:cleanLines(o?.translations?.uk?.instructions?.length?o.translations.uk.instructions:(ukSteps.length?ukSteps:ex.st))},
+      ru:{name:o?.translations?.ru?.name||ruExerciseName(ex.n||''),description:o?.translations?.ru?.description||'',instructions:cleanLines(o?.translations?.ru?.instructions?.length?o.translations.ru.instructions:(ruSteps.length?ruSteps:ex.st))},
+      en:{name:o?.translations?.en?.name||ex.n||'',description:o?.translations?.en?.description||ex.desc||'',instructions:cleanLines(o?.translations?.en?.instructions?.length?o.translations.en.instructions:ex.st)}
     }
     setDraft({
       active:o?.active!==false,
@@ -132,11 +151,14 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
 
   if(selected&&draft){
     const tr=draft.translations[editLang]||{}
+    const shownEx=previewExercise(selected,draft,previewBody)
+    const currentGif=mediaValue(draft,previewBody,'gif')
+    const currentImg=mediaValue(draft,previewBody,'image')
     return <>
       <Button size="sm" onClick={()=>{setSelected(null);setDraft(null)}}>← Вправи</Button>
       <div className="card" style={{marginTop:12}}>
         <div className="row" style={{gap:12,alignItems:'center'}}>
-          <Thumb ex={selected}/>
+          <Thumb ex={shownEx}/>
           <div style={{minWidth:0}}>
             <div className="lbl2">Редактор вправи · {selected.id}</div>
             <div className="big" style={{fontSize:24}}>{tr.name||generatedName(selected,editLang)}</div>
@@ -146,13 +168,13 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
         <div style={{marginTop:12}}><Segmented value={editLang} onChange={setEditLang} options={[{value:'uk',label:'UA'},{value:'ru',label:'RU'},{value:'en',label:'EN'}]}/></div>
       </div>
 
-      <Section title="Оригінальні дані">
-        <Row title="Назва ExerciseDB" value={selected.n||'—'}/>
+      <Section title="Оригінальні дані ExerciseDB">
+        <Row title="Назва" value={selected.n||'—'}/>
         <Row title="Частина тіла" value={selected.bp||'—'}/>
         <Row title="Обладнання" value={selected.eq||'—'}/>
         <Row title="Цільовий мʼяз" value={selected.tg||'—'}/>
-        <Row title="Опис" subtitle={selected.desc||'Опис у вихідному каталозі відсутній'}/>
-        <Row title="Інструкція" subtitle={(selected.st||[]).length?(selected.st||[]).map((x,i)=>`${i+1}. ${x}`).join('\n'):'Інструкція у вихідному каталозі відсутня'}/>
+        <Row title="Опис" subtitle={selected.desc||'Окремого description у каталозі немає — техніка зберігається покроково нижче.'}/>
+        <Row title={`Інструкція · ${selected.st?.length||0} кроків`} subtitle={(selected.st||[]).length?(selected.st||[]).map((x,i)=>`${i+1}. ${x}`).join('\n'):'Інструкція у вихідному каталозі відсутня'}/>
       </Section>
 
       <div className="card">
@@ -160,9 +182,10 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
         <div className="small muted" style={{marginTop:12}}>Назва {editLang.toUpperCase()}</div>
         <input className="field" value={tr.name||''} onChange={e=>setTr(editLang,'name',e.target.value)} placeholder={generatedName(selected,editLang)}/>
         <div className="small muted" style={{marginTop:10}}>Опис {editLang.toUpperCase()}</div>
-        <textarea className="field" rows="4" value={tr.description||''} onChange={e=>setTr(editLang,'description',e.target.value)} placeholder={selected.desc||'Опис техніки'}/>
-        <div className="small muted" style={{marginTop:10}}>Інструкція · один крок з нового рядка</div>
-        <textarea className="field" rows="7" value={tr.instructions||''} onChange={e=>setTr(editLang,'instructions',e.target.value)} placeholder={cleanLines(selected.st)}/>
+        <textarea className="field" rows="4" value={tr.description||''} onChange={e=>setTr(editLang,'description',e.target.value)} placeholder="Короткий опис техніки (необовʼязково)"/>
+        <div className="small muted" style={{marginTop:10}}>Інструкція {editLang.toUpperCase()} · один крок з нового рядка</div>
+        <textarea className="field" rows="9" value={tr.instructions||''} onChange={e=>setTr(editLang,'instructions',e.target.value)} placeholder={cleanLines(selected.st)}/>
+        <div className="small dim" style={{marginTop:7}}>UA/RU підтягують уже наявну локалізовану покрокову інструкцію VARANGYM; EN — оригінал ExerciseDB. Ручна правка адміна має пріоритет.</div>
       </div>
 
       <div className="card">
@@ -178,9 +201,12 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
       </div>
 
       <div className="card">
-        <div className="lbl2">Медіа</div>
-        <div className="ss">Окремі GIF/зображення для чоловічого та жіночого профілю. Загальний URL працює як fallback.</div>
-        <div style={{display:'grid',gap:9,marginTop:10}}>
+        <div className="row between"><div><div className="lbl2">Медіа</div><div className="ss">Окремі GIF/зображення для чоловічого та жіночого профілю. Загальний URL працює як fallback.</div></div><Segmented value={previewBody} onChange={setPreviewBody} options={[{value:'male',label:'♂'},{value:'female',label:'♀'}]}/></div>
+        <div style={{margin:'12px 0',borderRadius:14,overflow:'hidden',background:'var(--surface-2)',minHeight:160,display:'grid',placeItems:'center'}}>
+          {shownEx.gif?<img key={`${previewBody}:${shownEx.gif}`} src={gifSrc(shownEx)} alt="GIF preview" style={{display:'block',width:'100%',maxHeight:320,objectFit:'contain'}} onError={e=>{e.currentTarget.style.display='none'}}/>:shownEx.img?<img key={`${previewBody}:${shownEx.img}`} src={imgSrc(shownEx)} alt="Preview" style={{display:'block',width:'100%',maxHeight:320,objectFit:'contain'}}/>:<span className="small dim">Медіа відсутнє</span>}
+        </div>
+        <div className="small dim" style={{marginBottom:10}}>Preview {previewBody==='female'?'жіночого':'чоловічого'} профілю · {currentGif||currentImg?'admin override':'вихідне медіа каталогу'}</div>
+        <div style={{display:'grid',gap:9}}>
           <input className="field" value={draft.gifMale} onChange={e=>setDraft(d=>({...d,gifMale:e.target.value}))} placeholder="GIF · чоловічий"/>
           <input className="field" value={draft.gifFemale} onChange={e=>setDraft(d=>({...d,gifFemale:e.target.value}))} placeholder="GIF · жіночий"/>
           <input className="field" value={draft.gif} onChange={e=>setDraft(d=>({...d,gif:e.target.value}))} placeholder="GIF · загальний"/>
@@ -198,7 +224,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
     <div className="card" style={{padding:8}}><Segmented value={tab} onChange={setTab} options={[{value:'library',label:'Вправи'},{value:'plans',label:'Плани'}]}/></div>
     <div className="card">
       <div className="lbl2">Повна бібліотека · {CATALOGUE.length} вправ</div>
-      <div className="ss">Усі вправи з основного VARANGYM-каталогу. UA/RU назви генеруються для всього каталогу, а ручні правки адміна мають пріоритет.</div>
+      <div className="ss">Усі вправи з основного VARANGYM-каталогу. Популярні UA/RU назви мають окремі gym-аліаси, решта каталогу нормалізується автоматично; ручні правки адміна завжди мають пріоритет.</div>
       <input className="field" style={{marginTop:12}} placeholder="Пошук назви, мʼяза, обладнання…" value={q} onChange={e=>{setQ(e.target.value);setShown(100)}}/>
       <div style={{marginTop:9}}><Segmented value={locale} onChange={setLocale} options={[{value:'uk',label:'UA'},{value:'ru',label:'RU'},{value:'en',label:'EN'}]}/></div>
       <div style={{marginTop:9}}><Segmented value={body} onChange={setBody} options={[{value:'all',label:'Усі'},{value:'male',label:'Чоловік'},{value:'female',label:'Жінка'}]}/></div>
