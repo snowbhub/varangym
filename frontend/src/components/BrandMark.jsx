@@ -11,15 +11,16 @@ export default function BrandMark({ size = 78, wordmark = false, className = '' 
       <defs>
         <linearGradient id="vgMark" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="currentColor" />
-          <stop offset="1" stopColor="currentColor" stopOpacity=".76" />
+          <stop offset="1" stopColor="currentColor" stopOpacity=".78" />
         </linearGradient>
       </defs>
-      {/* The V is the body/tail. Its right shoulder grows into a compact flexed-arm silhouette.
-          The short angular snout keeps the monitor-lizard reference without an eye/head that reads
-          as a snake. */}
-      <path d="M13 18 42.7 78.4c2.2 4.4 8.5 4.4 10.7 0L72.9 36H59.5L48 61.2 27.8 18Z" fill="url(#vgMark)" />
-      <path d="M57.8 36.3c2.3-9.7 8.3-16.8 18.1-20.9 4-1.7 8.6-1.9 13.1-.7l-6 7.1c-3.8-.5-7 .3-9.8 2.2l8.9 3.2-5.6 7.5-8.2-2.7c-1.7 3-2.6 6.2-2.8 9.8-3.4-.8-5.9-2.6-7.7-5.5Z" fill="currentColor" />
-      <path d="M73.4 24.1c-4.7 2.4-7.8 6.3-9.4 11.8" fill="none" stroke="var(--bg,#000)" strokeWidth="2.7" strokeLinecap="round" opacity=".9" />
+      {/* V = torso/tail. The right shoulder bends back like a flexed arm, while the compact
+          angular tip still reads as a monitor-lizard head. No round eye/head silhouette, so the
+          mark avoids the old snake look. */}
+      <path d="M12 17h21.5L48.5 61 61 31h15L54.5 79.5c-2.3 5.1-9.6 5.1-12 0Z" fill="url(#vgMark)" />
+      <path d="M57.5 43.5c1.8-8.5 5.9-15.5 12.3-19.6 3.4-2.2 7.2-3.4 11.2-3.6l4.5-4.2 7.3 4.3-5.2 5 6.1 3.2-4.8 5.6-7.2-1.1c-3.6-3-7.3-3.8-10.6-1.8-2.8 1.7-4.9 4.5-6.2 8.5l7.9-3.4c5.8-2.4 11.4-.4 15.2 4.7l-4.1 7.2c-5.4 2.4-11.2 1.9-16.2-1.1l-6.6-4Z" fill="currentColor" />
+      <path d="M72.2 30.8c-3.6 2.4-6 5.8-7.1 10.3" fill="none" stroke="var(--bg,#000)" strokeWidth="2.8" strokeLinecap="round" opacity=".92" />
+      <path d="m86.2 24.2 2.3 1-2.1 1.3-1.7-1.2Z" fill="var(--bg,#000)" opacity=".95" />
     </svg>
   )
 
