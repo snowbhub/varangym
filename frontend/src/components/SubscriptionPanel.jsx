@@ -6,8 +6,10 @@ import { Button, Row, Section } from './ui.jsx'
 
 const money=(cents,currency='USD')=>new Intl.NumberFormat('uk-UA',{style:'currency',currency,maximumFractionDigits:2}).format(Number(cents||0)/100)
 const date=v=>{if(!v)return'—';try{return new Date(v).toLocaleDateString('uk-UA')}catch{return'—'}}
+const audienceForMode=mode=>mode==='business'?'organization':mode==='trainer'?'trainer':mode==='admin'?'all':'solo'
+const audienceOfSub=s=>s?.plan_code?.startsWith('business_')?'organization':s?.plan_code?.startsWith('coach_')?'trainer':'solo'
 
-export default function SubscriptionPanel(){
+export default function SubscriptionPanel({mode=null}){
   const toast=useUI(s=>s.toast)
   const [identity,setIdentity]=useState(null)
   const [status,setStatus]=useState(null)
@@ -26,10 +28,12 @@ export default function SubscriptionPanel(){
   const trainers=useMemo(()=>trainerMemberships(identity),[identity])
   const businesses=useMemo(()=>businessMemberships(identity),[identity])
   const subs=status?.subscriptions||[]
-  const current=subs.find(x=>['active','trialing'].includes(x.status))||subs[0]||null
+  const wantedAudience=audienceForMode(mode)
+  const relevant=subs.filter(x=>wantedAudience==='all'||audienceOfSub(x)===wantedAudience)
+  const current=relevant.find(x=>['active','trialing'].includes(x.status))||relevant[0]||subs.find(x=>['active','trialing'].includes(x.status))||subs[0]||null
   const currentWorkspaceId=current?.subject_type==='workspace'?current.subject_id:null
-  const audience=current?.plan_code?.startsWith('business_')?'organization':current?.plan_code?.startsWith('coach_')?'trainer':'solo'
-  const eligiblePlans=plans.filter(p=>p.audience===audience)
+  const audience=wantedAudience==='all'?(current?audienceOfSub(current):'solo'):wantedAudience
+  const eligiblePlans=plans.filter(p=>audience==='all'||p.audience===audience)
   const billingSub=current?.subject_type==='workspace'
     ? (billing?.workspaceSubscriptions||[]).find(x=>x.workspace_id===current.subject_id&&x.plan_code===current.plan_code)||(billing?.workspaceSubscriptions||[]).find(x=>x.workspace_id===current.subject_id)
     : (billing?.userSubscriptions||[]).find(x=>x.plan_code===current?.plan_code)||billing?.userSubscriptions?.[0]
@@ -39,7 +43,7 @@ export default function SubscriptionPanel(){
     try{
       const body={planCode:plan.code}
       if(plan.audience!=='solo'){
-        const workspaceId=currentWorkspaceId||(plan.audience==='organization'?businesses[0]?.workspace_id:trainers[0]?.workspace_id)
+        const workspaceId=(current?.subject_type==='workspace'&&audienceOfSub(current)===plan.audience?currentWorkspaceId:null)||(plan.audience==='organization'?businesses[0]?.workspace_id:trainers[0]?.workspace_id)
         if(!workspaceId)throw new Error('Для цього тарифу потрібен workspace')
         body.workspaceId=workspaceId
       }
@@ -59,14 +63,14 @@ export default function SubscriptionPanel(){
     finally{setBusy('')}
   }
 
-  return <Section title="Підписка">
+  return <Section title={mode==='admin'?'Підписки й тарифи':'Підписка'}>
     {current?<>
       <Row icon="key" iconTint="var(--acc)" title={current.plan_metadata?.label||current.plan_code||'VARANGYM'} subtitle={`${current.status}${current.status==='trialing'?` · trial до ${date(current.trial_ends_at)}`:current.current_period_end?` · до ${date(current.current_period_end)}`:''}`} value={billingSub?.cancel_at_period_end?'скасується':'активна'}/>
       {current.status==='trialing'&&<Row icon="info" iconTint="var(--orange)" title="30-денний пробний період" subtitle="До завершення trial можна перейти на платний тариф. Без оформленої оплати автоматичне списання не запускається."/>}
       {billingSub?.status==='active'&&<Row icon="info" title="Керування підпискою" subtitle={billingSub.cancel_at_period_end?`Доступ лишиться до ${date(billingSub.current_period_end)}.`:'Скасування не видаляє дані акаунта.'}><Button size="sm" disabled={!!busy} onClick={()=>changeCancel(!!billingSub.cancel_at_period_end)}>{busy?'…':billingSub.cancel_at_period_end?'Продовжити':'Скасувати'}</Button></Row>}
       {billingSub?.status==='trialing'&&<Row icon="info" title="Завершити trial" subtitle="Дані залишаться; платну підписку можна оформити пізніше."><Button size="sm" disabled={!!busy} onClick={()=>changeCancel(false)}>{busy?'…':'Завершити'}</Button></Row>}
-    </>:<Row icon="key" title="Підписка не знайдена" subtitle="Для щойно створеного акаунта дані можуть зʼявитися після синхронізації."/>}
-    {eligiblePlans.map(p=><Row key={p.code} icon="creditCard" iconTint={p.code===current?.plan_code?'var(--acc)':'var(--grey)'} title={p.metadata?.label||p.code} subtitle={`${p.billing_kind==='recurring'?'щомісячно':'назавжди'} · ${money(p.price_cents,p.currency)}`}>
+    </>:<Row icon="key" title="Активної підписки для цього режиму немає" subtitle="Нижче можна вибрати відповідний тариф."/>}
+    {eligiblePlans.map(p=><Row key={p.code} icon="creditCard" iconTint={p.code===current?.plan_code?'var(--acc)':'var(--grey)'} title={p.metadata?.label||p.code} subtitle={`${p.billing_kind==='recurring'?'щомісячно':'назавжди'} · ${money(p.price_cents,p.currency)}${p.trainer_limit!=null?` · ${p.trainer_limit} трен.`:''}${p.client_limit!=null?` · ${p.client_limit} клієнт.`:''}`}>
       {p.code!==current?.plan_code&&<Button size="sm" disabled={!!busy} onClick={()=>checkout(p)}>{busy===p.code?'…':'Обрати'}</Button>}
     </Row>)}
   </Section>
