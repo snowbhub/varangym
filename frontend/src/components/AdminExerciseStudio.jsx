@@ -3,6 +3,7 @@ import { api } from '../lib/api.js'
 import { CATALOGUE, gifSrc, imgSrc } from '../lib/exercises.js'
 import { ukExerciseName } from '../lib/uk-exercise-name.js'
 import { ruExerciseName } from '../lib/ru-exercise-name.js'
+import { popularExerciseName } from '../lib/exercise-popular-name.js'
 import { ukrainianizeInstructions } from '../lib/uk-instructions.js'
 import { loadExerciseOverrides } from '../lib/exercise-overrides.js'
 import { useUI } from '../store/useUI.js'
@@ -30,6 +31,12 @@ const previewExercise=(selected,draft,body)=>({
   img:mediaValue(draft,body,'image')||selected.img,
   gif:mediaValue(draft,body,'gif')||selected.gif,
 })
+const qualityOf=(ex,o,locale)=>{
+  if(o?.translations?.[locale]?.name)return 'manual'
+  if(locale==='uk'||locale==='ru')return popularExerciseName(ex.n||'',locale)?'curated':'auto'
+  return 'source'
+}
+const qualityLabel=q=>q==='manual'?'ручна правка':q==='curated'?'gym-назва':q==='auto'?'автоназва':'оригінал EN'
 
 export default function AdminExerciseStudio({workspaces=[],users=[]}) {
   const toast=useUI(s=>s.toast)
@@ -37,6 +44,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
   const [locale,setLocale]=useState('uk')
   const [q,setQ]=useState('')
   const [body,setBody]=useState('all')
+  const [quality,setQuality]=useState('all')
   const [part,setPart]=useState('')
   const [equipment,setEquipment]=useState('')
   const [muscle,setMuscle]=useState('')
@@ -59,6 +67,15 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
   const bodyParts=useMemo(()=>uniq(CATALOGUE.map(x=>x.bp)),[])
   const equipments=useMemo(()=>uniq(CATALOGUE.map(x=>x.eq)),[])
   const muscles=useMemo(()=>uniq(CATALOGUE.flatMap(x=>[x.tg,...list(x.sm),...list(x.primaries),...list(x.secondaries)])),[])
+  const coverage=useMemo(()=>{
+    const out={manual:0,curated:0,auto:0,source:0,hidden:0}
+    for(const ex of CATALOGUE){
+      const o=overrides.get(ex.id)
+      out[qualityOf(ex,o,locale)]++
+      if(o?.active===false)out.hidden++
+    }
+    return out
+  },[overrides,locale])
 
   const rows=useMemo(()=>{
     const needle=q.trim().toLowerCase()
@@ -66,6 +83,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
       const o=overrides.get(ex.id)
       const g=o?.metadata?.gender||genderOf(ex)
       if(body!=='all'&&g!=='unisex'&&g!==body)return false
+      if(quality!=='all'&&qualityOf(ex,o,locale)!==quality)return false
       if(part&&ex.bp!==part)return false
       if(equipment&&ex.eq!==equipment)return false
       const exMuscles=[ex.tg,...list(ex.sm),...list(ex.primaries),...list(ex.secondaries)]
@@ -78,7 +96,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
       ].filter(Boolean).join(' ').toLowerCase()
       return names.includes(needle)
     })
-  },[q,body,part,equipment,muscle,overrides])
+  },[q,body,quality,locale,part,equipment,muscle,overrides])
 
   const openExercise=async ex=>{
     setSelected(ex)
@@ -154,6 +172,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
     const shownEx=previewExercise(selected,draft,previewBody)
     const currentGif=mediaValue(draft,previewBody,'gif')
     const currentImg=mediaValue(draft,previewBody,'image')
+    const selectedQuality=qualityOf(selected,overrides.get(selected.id),editLang)
     return <>
       <Button size="sm" onClick={()=>{setSelected(null);setDraft(null)}}>← Вправи</Button>
       <div className="card" style={{marginTop:12}}>
@@ -163,6 +182,7 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
             <div className="lbl2">Редактор вправи · {selected.id}</div>
             <div className="big" style={{fontSize:24}}>{tr.name||generatedName(selected,editLang)}</div>
             <div className="ss">{selected.n} · {draft.bodyPart||selected.bp||'—'} · {draft.equipment||selected.eq||'—'}</div>
+            <div style={{marginTop:6}}><span className={'tag '+(selectedQuality==='manual'?'acc':'')}>{qualityLabel(selectedQuality)}</span></div>
           </div>
         </div>
         <div style={{marginTop:12}}><Segmented value={editLang} onChange={setEditLang} options={[{value:'uk',label:'UA'},{value:'ru',label:'RU'},{value:'en',label:'EN'}]}/></div>
@@ -225,21 +245,29 @@ export default function AdminExerciseStudio({workspaces=[],users=[]}) {
     <div className="card">
       <div className="lbl2">Повна бібліотека · {CATALOGUE.length} вправ</div>
       <div className="ss">Усі вправи з основного VARANGYM-каталогу. Популярні UA/RU назви мають окремі gym-аліаси, решта каталогу нормалізується автоматично; ручні правки адміна завжди мають пріоритет.</div>
-      <input className="field" style={{marginTop:12}} placeholder="Пошук назви, мʼяза, обладнання…" value={q} onChange={e=>{setQ(e.target.value);setShown(100)}}/>
-      <div style={{marginTop:9}}><Segmented value={locale} onChange={setLocale} options={[{value:'uk',label:'UA'},{value:'ru',label:'RU'},{value:'en',label:'EN'}]}/></div>
-      <div style={{marginTop:9}}><Segmented value={body} onChange={setBody} options={[{value:'all',label:'Усі'},{value:'male',label:'Чоловік'},{value:'female',label:'Жінка'}]}/></div>
-      <div className="grid2" style={{marginTop:9}}>
-        <select className="field" value={part} onChange={e=>setPart(e.target.value)}><option value="">Усі частини тіла</option>{bodyParts.map(x=><option key={x}>{x}</option>)}</select>
-        <select className="field" value={equipment} onChange={e=>setEquipment(e.target.value)}><option value="">Усе обладнання</option>{equipments.map(x=><option key={x}>{x}</option>)}</select>
+      <div className="grid2" style={{marginTop:12}}>
+        <div className="stat"><div className="n">{coverage.manual}</div><div className="l">ручних назв</div></div>
+        <div className="stat"><div className="n">{coverage.curated}</div><div className="l">gym-назв</div></div>
+        <div className="stat"><div className="n">{locale==='en'?coverage.source:coverage.auto}</div><div className="l">{locale==='en'?'EN оригіналів':'автоназв'}</div></div>
+        <div className="stat"><div className="n">{coverage.hidden}</div><div className="l">приховано</div></div>
       </div>
-      <select className="field" style={{marginTop:9}} value={muscle} onChange={e=>setMuscle(e.target.value)}><option value="">Усі мʼязи</option>{muscles.map(x=><option key={x}>{x}</option>)}</select>
+      <input className="field" style={{marginTop:12}} placeholder="Пошук назви, мʼяза, обладнання…" value={q} onChange={e=>{setQ(e.target.value);setShown(100)}}/>
+      <div style={{marginTop:9}}><Segmented value={locale} onChange={v=>{setLocale(v);setQuality('all');setShown(100)}} options={[{value:'uk',label:'UA'},{value:'ru',label:'RU'},{value:'en',label:'EN'}]}/></div>
+      {(locale==='uk'||locale==='ru')&&<div style={{marginTop:9}}><Segmented value={quality} onChange={v=>{setQuality(v);setShown(100)}} options={[{value:'all',label:'Усі'},{value:'manual',label:'Ручні'},{value:'curated',label:'Gym'},{value:'auto',label:'Авто'}]}/></div>}
+      <div style={{marginTop:9}}><Segmented value={body} onChange={v=>{setBody(v);setShown(100)}} options={[{value:'all',label:'Усі'},{value:'male',label:'Чоловік'},{value:'female',label:'Жінка'}]}/></div>
+      <div className="grid2" style={{marginTop:9}}>
+        <select className="field" value={part} onChange={e=>{setPart(e.target.value);setShown(100)}}><option value="">Усі частини тіла</option>{bodyParts.map(x=><option key={x}>{x}</option>)}</select>
+        <select className="field" value={equipment} onChange={e=>{setEquipment(e.target.value);setShown(100)}}><option value="">Усе обладнання</option>{equipments.map(x=><option key={x}>{x}</option>)}</select>
+      </div>
+      <select className="field" style={{marginTop:9}} value={muscle} onChange={e=>{setMuscle(e.target.value);setShown(100)}}><option value="">Усі мʼязи</option>{muscles.map(x=><option key={x}>{x}</option>)}</select>
     </div>
     <Section title={`Вправи · ${rows.length} з ${CATALOGUE.length}`}>
       {rows.slice(0,shown).map(ex=>{
         const o=overrides.get(ex.id)
         const title=o?.translations?.[locale]?.name||generatedName(ex,locale)
         const g=o?.metadata?.gender||genderOf(ex)
-        return <Row key={ex.id} title={title} subtitle={`${ex.bp||'—'} · ${ex.eq||'—'} · ${ex.tg||'—'} · ${g}${o?.active===false?' · прихована':''}`} accessory="chevron" onClick={()=>openExercise(ex)}>
+        const ql=qualityOf(ex,o,locale)
+        return <Row key={ex.id} title={title} subtitle={`${ex.bp||'—'} · ${ex.eq||'—'} · ${ex.tg||'—'} · ${g} · ${qualityLabel(ql)}${o?.active===false?' · прихована':''}`} accessory="chevron" onClick={()=>openExercise(ex)}>
           <span style={{marginRight:10}}><Thumb ex={ex}/></span>
         </Row>
       })}
