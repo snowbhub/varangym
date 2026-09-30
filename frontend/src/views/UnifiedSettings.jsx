@@ -39,6 +39,7 @@ export default function UnifiedSettings(){
     business:!!access.business,
     trainer:!!access.trainer,
   }
+  const hasRoleMode=effectiveAccess.platformAdmin||effectiveAccess.business||effectiveAccess.trainer
   const switchMode=next=>{
     setRoleMode(next)
     setModeState(next||null)
@@ -50,11 +51,11 @@ export default function UnifiedSettings(){
     : subscription?.status==='active'?'Активна підписка':'Solo, Coach або Business'
 
   return <div className="narrow vg-unified-settings">
-    <div className="hdr"><div style={{flex:1}}><h1>Налаштування</h1><div className="sub">Режим: {modeTitle(mode)} · VARANGYM</div></div></div>
+    <div className="hdr"><div style={{flex:1}}><h1>Налаштування</h1><div className="sub">{hasRoleMode?`Режим: ${modeTitle(mode)} · `:''}VARANGYM</div></div></div>
 
     {user&&<Section title="Акаунт">
-      <Row icon="personCircle" iconTint="var(--grey)" title={user.name||identity?.user?.display_name||'VARANGYM'} subtitle={mode?`${modeTitle(mode)} режим активний`:'Звичайний режим тренувань'} />
-      <Row icon="house" iconTint="var(--acc)" title="Звичайний режим" subtitle="Мої тренування, план, статистика та вправи" accessory={!mode?'check':'chevron'} onClick={()=>switchMode(null)}/>
+      <Row icon="personCircle" iconTint="var(--grey)" title={user.name||identity?.user?.display_name||'VARANGYM'} subtitle={mode?`${modeTitle(mode)} режим активний`:'Мій профіль VARANGYM'} />
+      {hasRoleMode&&<Row icon="house" iconTint="var(--acc)" title="Звичайний режим" subtitle="Мої тренування, план, статистика та вправи" accessory={!mode?'check':'chevron'} onClick={()=>switchMode(null)}/>} 
       {effectiveAccess.platformAdmin&&<Row icon={MODE_COPY.admin.icon} iconTint={MODE_COPY.admin.tint} title={MODE_COPY.admin.title} subtitle={MODE_COPY.admin.subtitle} accessory={mode==='admin'?'check':'chevron'} onClick={()=>switchMode('admin')}/>} 
       {effectiveAccess.business&&<Row icon={MODE_COPY.business.icon} iconTint={MODE_COPY.business.tint} title={MODE_COPY.business.title} subtitle={MODE_COPY.business.subtitle} accessory={mode==='business'?'check':'chevron'} onClick={()=>switchMode('business')}/>} 
       {effectiveAccess.trainer&&<Row icon={MODE_COPY.trainer.icon} iconTint={MODE_COPY.trainer.tint} title={MODE_COPY.trainer.title} subtitle={MODE_COPY.trainer.subtitle} accessory={mode==='trainer'?'check':'chevron'} onClick={()=>switchMode('trainer')}/>} 
