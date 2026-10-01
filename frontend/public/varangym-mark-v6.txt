@@ -1,0 +1,2 @@
+VARANGYM v6 source: frontend/public/varangym-mark.svg
+Native and PWA assets must be generated from this mark at build/release time.
