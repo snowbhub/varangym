@@ -1,25 +1,12 @@
 export default function BrandMark({ size = 78, wordmark = false, className = '' }) {
   const mark = (
-    <svg
-      viewBox="0 0 96 96"
-      width={size}
-      height={size}
-      className={className}
-      aria-hidden="true"
-      focusable="false"
-    >
-      <defs>
-        <linearGradient id="vgMark" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="currentColor" />
-          <stop offset="1" stopColor="currentColor" stopOpacity=".76" />
-        </linearGradient>
-      </defs>
-      {/* The V is the body/tail. Its right shoulder grows into a compact flexed-arm silhouette.
-          The short angular snout keeps the monitor-lizard reference without an eye/head that reads
-          as a snake. */}
-      <path d="M13 18 42.7 78.4c2.2 4.4 8.5 4.4 10.7 0L72.9 36H59.5L48 61.2 27.8 18Z" fill="url(#vgMark)" />
-      <path d="M57.8 36.3c2.3-9.7 8.3-16.8 18.1-20.9 4-1.7 8.6-1.9 13.1-.7l-6 7.1c-3.8-.5-7 .3-9.8 2.2l8.9 3.2-5.6 7.5-8.2-2.7c-1.7 3-2.6 6.2-2.8 9.8-3.4-.8-5.9-2.6-7.7-5.5Z" fill="currentColor" />
-      <path d="M73.4 24.1c-4.7 2.4-7.8 6.3-9.4 11.8" fill="none" stroke="var(--bg,#000)" strokeWidth="2.7" strokeLinecap="round" opacity=".9" />
+    <svg viewBox="0 0 512 512" width={size} height={size} className={className} aria-hidden="true" focusable="false">
+      <rect width="512" height="512" rx="116" fill="#090b0d" />
+      <path fill="#32e56d" d="M78 88h70l116 261c7 17 17 25 29 25 12 0 23-8 31-24l18-35 58 30-57 78c-22 30-52 43-87 38-33-5-57-25-71-58L69 108Z" />
+      <path d="M291 379c26-35 44-70 62-104 20-39 42-70 76-92" fill="none" stroke="#32e56d" strokeWidth="66" strokeLinecap="round" strokeLinejoin="round" />
+      <path fill="#32e56d" d="M400 166l31-16-7-23 31-16 34 7-14 17 29 11-25 14 25 10-27 27-39-13-27 13-15-19Z" />
+      <circle cx="461" cy="137" r="5" fill="#090b0d" />
+      <circle cx="490" cy="157" r="3" fill="#090b0d" />
     </svg>
   )
 
