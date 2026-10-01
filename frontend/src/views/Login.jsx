@@ -86,22 +86,27 @@ export default function Login(){
   const register=()=>useUI.getState().openSheet(close=><RegisterSheet close={close}/>)
   const invite=()=>useUI.getState().openSheet(close=><RegisterSheet close={close} inviteMode/>)
   const openPlans=()=>useUI.getState().openSheet(close=><PlanPicker close={close} publicMode onTrial={audience=>{close();setTimeout(()=>useUI.getState().openSheet(c=><RegisterSheet close={c} initialType={audience==='organization'?'business':audience==='trainer'?'trainer':'solo'}/>),100)}}/>)
-  const head=<><div className="vg-login-brand"><BrandMark size={96}/></div><h1 className="vg-login-word">VARANGYM</h1><div className="vg-login-motto">PLAN · TRAIN · PROGRESS</div></>
-  const wrap={display:'flex',flexDirection:'column',justifyContent:'center',textAlign:'center'}
-  if(DEMO)return <div className="narrow vg-login" style={wrap}><LanguageSelect/>{head}<div className="muted">{t('Live demo — everything stays in this browser.')}</div><Button variant="primary" icon="sparkles" onClick={()=>setGuest(true)}>{t('Start the demo')}</Button><div className="dim small"><a href={REPO} target="_blank" rel="noopener">{t('VARANGYM source & licenses →')}</a></div></div>
-  return <div className="narrow vg-login" style={wrap}>
+  const head=<><div className="vg-login-brand"><BrandMark size={118}/></div><h1 className="vg-login-word">VARANGYM</h1><div className="vg-login-motto">PLAN · TRAIN · PROGRESS</div></>
+  if(DEMO)return <div className="vg-login"><LanguageSelect/><div className="vg-login-stage">{head}<div className="muted vg-login-tagline">{t('Live demo — everything stays in this browser.')}</div></div><div className="vg-login-bottom"><Button variant="primary" icon="sparkles" onClick={()=>setGuest(true)}>{t('Start the demo')}</Button><div className="dim small vg-login-foot"><a href={REPO} target="_blank" rel="noopener">{t('VARANGYM source & licenses →')}</a></div></div></div>
+  return <div className="vg-login">
     <LanguageSelect/>
-    {head}
-    <div className="muted vg-login-tagline">{p('loginTagline')}</div>
-    <div className="vg-login-actions-main">
-      {webauthnOK()?<>
-        <Button variant="primary" icon="person" onClick={signIn}>{t('Sign in with passkey')}</Button>
-        <Button icon="sparkles" onClick={register}>{p('createFree')}</Button>
-        <Button variant="tinted" icon="creditCard" onClick={openPlans}>{p('viewPlans')}</Button>
-        <button className="vg-login-invite" type="button" onClick={invite}>{p('invite')}</button>
-      </>:<div className="card small muted">{canGuest?t("This browser doesn't support passkeys — you can still use VARANGYM locally on this device."):t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</div>}
-      {canGuest&&<button className="vg-login-guest" type="button" onClick={()=>setGuest(true)}>{p('continueGuest')}</button>}
-    </div>
-    <div className="dim small vg-login-foot">{t('Passkeys use {0} — no passwords.',BIO)}<br/>{p('trialNote')}</div>
+    <main className="vg-login-stage">
+      {head}
+      <div className="muted vg-login-tagline">{p('loginTagline')}</div>
+    </main>
+    <footer className="vg-login-bottom">
+      <div className="vg-login-actions-main">
+        {webauthnOK()?<>
+          <Button variant="primary" icon="person" onClick={signIn}>{t('Sign in with passkey')}</Button>
+          <Button className="vg-login-trial" icon="sparkles" onClick={register}>{p('startTrial')}</Button>
+          <div className="vg-login-quick-actions">
+            <button className="vg-login-quick" type="button" onClick={invite}>{p('invite')}</button>
+            <button className="vg-login-quick" type="button" onClick={openPlans}>{p('viewPlans')}</button>
+          </div>
+        </>:<div className="card small muted">{canGuest?t("This browser doesn't support passkeys — you can still use VARANGYM locally on this device."):t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</div>}
+        {canGuest&&<button className="vg-login-guest" type="button" onClick={()=>setGuest(true)}>{p('continueGuest')}</button>}
+      </div>
+      <div className="dim small vg-login-foot">{t('Passkeys use {0} — no passwords.',BIO)}<br/>{p('trialNote')}</div>
+    </footer>
   </div>
 }
