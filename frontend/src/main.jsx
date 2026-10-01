@@ -4,10 +4,10 @@ import { MOBILE } from './lib/mobile.js'
 import './index.css'
 import './varangym-polish.css'
 import './product-v6.css'
+import './brand-v7.css'
 
-// New installs start with the VARANGYM brand accent. Language is still selectable before login;
-// Ukrainian remains the first-run default for this deployment, while signed-in profiles restore
-// their own saved language normally.
+// New installs start with the VARANGYM brand accent. Language is selectable before login;
+// signed-in profiles restore their own saved language normally.
 try {
   if (!localStorage.getItem('gym_state_v1')) {
     localStorage.setItem('gym_state_v1', JSON.stringify({ lang: 'uk', accent: 'varangym' }))
