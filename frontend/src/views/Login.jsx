@@ -51,9 +51,9 @@ function RegisterSheet({close,inviteMode=false,initialType='solo'}){
     <div className="muted small" style={{marginBottom:14}}>{usingInvite?t('Your invite determines your role and workspace. Confirm the profile with {0}.',BIO):p('trialNote')}</div>
     {!usingInvite&&<div style={{marginBottom:12}}><Segmented options={[{value:'solo',label:'Solo'},{value:'trainer',label:'Coach'},{value:'business',label:'Business'}]} value={accountType} onChange={setAccountType}/></div>}
     <input ref={ref} className="input" placeholder={t('Your name')} maxLength={80} value={name} onChange={e=>setName(e.target.value)}/>
-    <div style={{height:10}}/><input className="input" type="email" autoComplete="email" placeholder="Email" maxLength={320} value={email} onChange={e=>setEmail(e.target.value)}/>
+    <div style={{height:10}}/><input className="input" type="email" autoComplete="email" placeholder={t('Email')} maxLength={320} value={email} onChange={e=>setEmail(e.target.value)}/>
     {!usingInvite&&accountType!=='solo'&&<><div style={{height:10}}/><input className="input" placeholder={accountType==='business'?t('Organization / gym name'):t('Coach profile name')} maxLength={100} value={workspaceName} onChange={e=>setWorkspaceName(e.target.value)}/></>}
-    {usingInvite&&!linkCode&&<><div style={{height:10}}/><input className="input" placeholder={t('Invite code')} maxLength={40} value={code} onChange={e=>setCode(e.target.value.toUpperCase())} style={{letterSpacing:'.14em',fontWeight:600,textAlign:'center'}}/></>}
+    {usingInvite&&!linkCode&&<><div style={{height:10}}/><input className="input vg-code-input" placeholder={t('Invite code')} maxLength={40} value={code} onChange={e=>setCode(e.target.value.toUpperCase())}/></>}
     <div style={{height:12}}/><Button variant="primary" disabled={busy} onClick={go}>{busy?'…':usingInvite?t('Create profile'):p('startTrial')}</Button>
   </div>
 }
@@ -63,7 +63,7 @@ function LanguageSelect(){
   const update=useStore(s=>s.update)
   const lang=useStore(s=>s.S.lang)||getLang()
   const choose=async code=>{update(s=>{s.lang=code});await setLang(code)}
-  return <label className="vg-login-language"><span>{p('language')}</span><select value={lang} onChange={e=>choose(e.target.value)}>{Object.entries(LANGS).map(([code,label])=><option value={code} key={code}>{label}</option>)}</select></label>
+  return <label className="vg-login-language" aria-label={p('language')}><span>{p('language')}</span><select value={lang} onChange={e=>choose(e.target.value)}>{Object.entries(LANGS).map(([code,label])=><option value={code} key={code}>{label}</option>)}</select></label>
 }
 
 export default function Login(){
@@ -80,16 +80,27 @@ export default function Login(){
   },[])
   useEffect(()=>{if(DEMO||inviteOpened.current||!webauthnOK()||!inviteFromLocation())return;inviteOpened.current=true;const timer=setTimeout(()=>useUI.getState().openSheet(close=><RegisterSheet close={close} inviteMode/>),120);return()=>clearTimeout(timer)},[])
   const signIn=async()=>{try{const u=await passkeyLogin();setUser(u);await adoptProfile(askAddDeviceData);useUI.getState().toast(t('Welcome back, {0}',u.name))}catch(e){if(e.name!=='NotAllowedError'&&e.name!=='AbortError')useUI.getState().toast(e.message||t('Sign-in failed'))}}
+  const register=()=>useUI.getState().openSheet(close=><RegisterSheet close={close}/>)
+  const invite=()=>useUI.getState().openSheet(close=><RegisterSheet close={close} inviteMode/>)
   const openPlans=()=>useUI.getState().openSheet(close=><PlanPicker close={close} publicMode onTrial={audience=>{close();setTimeout(()=>useUI.getState().openSheet(c=><RegisterSheet close={c} initialType={audience==='organization'?'business':audience==='trainer'?'trainer':'solo'}/>),120)}}/>)
   const head=<><div className="vg-login-brand"><BrandMark size={92}/></div><h1 className="vg-login-word">VARANGYM</h1><div className="vg-login-motto">PLAN · TRAIN · PROGRESS</div></>
   const wrap={display:'flex',flexDirection:'column',justifyContent:'center',textAlign:'center'}
   if(DEMO)return <div className="narrow vg-login" style={wrap}><LanguageSelect/>{head}<div className="muted">{t('Live demo — everything stays in this browser.')}</div><Button variant="primary" icon="sparkles" onClick={()=>setGuest(true)}>{t('Start the demo')}</Button><div className="dim small"><a href={REPO} target="_blank" rel="noopener">{t('VARANGYM source & licenses →')}</a></div></div>
   return <div className="narrow vg-login" style={wrap}>
-    <LanguageSelect/>{head}<div className="muted vg-login-tagline">{p('loginTagline')}</div>
+    <LanguageSelect/>
+    {head}
+    <div className="muted vg-login-tagline">{p('loginTagline')}</div>
     <div className="vg-login-actions-main">
-      {webauthnOK()?<><Button variant="primary" icon="person" onClick={signIn}>{t('Sign in with passkey')}</Button><Button icon="sparkles" onClick={()=>useUI.getState().openSheet(close=><RegisterSheet close={close}/>)}>{p('createFree')}</Button><Button variant="ghost" icon="key" onClick={()=>useUI.getState().openSheet(close=><RegisterSheet close={close} inviteMode/>)}>{p('invite')}</Button></>:<div className="card small muted">{canGuest?t("This browser doesn't support passkeys — you can still use VARANGYM locally on this device."):t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</div>}
-      <Button variant="tinted" onClick={openPlans}>{p('plansPricing')}</Button>
-      {canGuest&&<Button variant="ghost" className="dim" onClick={()=>setGuest(true)}>{p('continueGuest')}</Button>}
+      {webauthnOK()?<>
+        <Button variant="primary" icon="person" onClick={signIn}>{t('Sign in with passkey')}</Button>
+        <Button icon="sparkles" onClick={register}>{p('createFree')}</Button>
+        <div className="vg-login-linkrow">
+          <button type="button" onClick={openPlans}>{p('plansPricing')}</button>
+          <span aria-hidden="true">·</span>
+          <button type="button" onClick={invite}>{p('invite')}</button>
+        </div>
+      </>:<div className="card small muted">{canGuest?t("This browser doesn't support passkeys — you can still use VARANGYM locally on this device."):t("This browser doesn't support passkeys, and this instance requires an account. Try a browser or device with passkey support.")}</div>}
+      {canGuest&&<button className="vg-login-guest" type="button" onClick={()=>setGuest(true)}>{p('continueGuest')}</button>}
     </div>
     <div className="dim small vg-login-foot">{t('Passkeys use {0} — no passwords.',BIO)}<br/>{p('trialNote')}</div>
   </div>
