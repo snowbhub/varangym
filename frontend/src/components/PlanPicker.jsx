@@ -7,9 +7,9 @@ import { Button } from './ui.jsx'
 
 const FAMILY=['solo','trainer','organization']
 const COPY={
-  solo:{name:'Solo',audience:'soloAudience',pitch:'soloPitch',features:['soloF1','soloF2','soloF3','soloF4']},
-  trainer:{name:'Coach',audience:'coachAudience',pitch:'coachPitch',features:['coachF1','coachF2','coachF3','coachF4']},
-  organization:{name:'Business',audience:'businessAudience',pitch:'businessPitch',features:['businessF1','businessF2','businessF3','businessF4']},
+  solo:{name:'Solo',icon:'personCircle',audience:'soloAudience',pitch:'soloPitch',features:['soloF1','soloF2','soloF3','soloF4']},
+  trainer:{name:'Coach',icon:'figureStrength',audience:'coachAudience',pitch:'coachPitch',features:['coachF1','coachF2','coachF3','coachF4']},
+  organization:{name:'Business',icon:'chartLine',audience:'businessAudience',pitch:'businessPitch',features:['businessF1','businessF2','businessF3','businessF4']},
 }
 const LABELS={solo_monthly:'monthlyName',solo_lifetime:'lifetimeName',coach_5:'starterName',coach_10:'proName',coach_20:'scaleName',business_5_50:'studioName',business_10_100:'clubName'}
 const RECOMMENDED=new Set(['solo_monthly','coach_10','business_5_50'])
@@ -62,10 +62,10 @@ export default function PlanPicker({close,plans:providedPlans=null,paymentsConfi
   return <div className="vg-plan-picker">
     <div className="vg-picker-head">
       <div><div className="vg-plan-kicker">VARANGYM</div><h2>{p('pickPlanTitle')}</h2><p>{p('pickPlanSub')}</p></div>
-      {close&&<button className="iconbtn" onClick={close} aria-label={p('close')}><Icon name="x"/></button>}
+      {close&&<button className="iconbtn" onClick={close} aria-label={p('close')}><Icon name="xmark"/></button>}
     </div>
     <div className="vg-plan-tabs" role="tablist">
-      {FAMILY.map(a=><button key={a} className={family===a?'active':''} onClick={()=>chooseFamily(a)} role="tab" aria-selected={family===a}>{COPY[a].name}</button>)}
+      {FAMILY.map(a=><button key={a} className={family===a?'active':''} onClick={()=>chooseFamily(a)} role="tab" aria-selected={family===a}><Icon name={COPY[a].icon}/><span>{COPY[a].name}</span></button>)}
     </div>
     <div className="vg-plan-family-rail" ref={railRef} onScroll={onFamilyScroll}>
       {FAMILY.map(a=>{

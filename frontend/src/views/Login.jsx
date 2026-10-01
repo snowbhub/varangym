@@ -66,7 +66,7 @@ function LanguageSelect(){
   const update=useStore(s=>s.update)
   const lang=useStore(s=>s.S.lang)||getLang()
   const choose=async code=>{update(s=>{s.lang=code});await setLang(code)}
-  return <label className="vg-login-language" aria-label={p('language')}><span>{p('language')}</span><select value={lang} onChange={e=>choose(e.target.value)}>{Object.entries(LANGS).map(([code,label])=><option value={code} key={code}>{label}</option>)}</select></label>
+  return <label className="vg-login-language" aria-label={p('language')}><select value={lang} onChange={e=>choose(e.target.value)}>{Object.entries(LANGS).map(([code,label])=><option value={code} key={code}>{label}</option>)}</select></label>
 }
 
 export default function Login(){
@@ -86,7 +86,7 @@ export default function Login(){
   const register=()=>useUI.getState().openSheet(close=><RegisterSheet close={close}/>)
   const invite=()=>useUI.getState().openSheet(close=><RegisterSheet close={close} inviteMode/>)
   const openPlans=()=>useUI.getState().openSheet(close=><PlanPicker close={close} publicMode onTrial={audience=>{close();setTimeout(()=>useUI.getState().openSheet(c=><RegisterSheet close={c} initialType={audience==='organization'?'business':audience==='trainer'?'trainer':'solo'}/>),100)}}/>)
-  const head=<><div className="vg-login-brand"><BrandMark size={92}/></div><h1 className="vg-login-word">VARANGYM</h1><div className="vg-login-motto">PLAN · TRAIN · PROGRESS</div></>
+  const head=<><div className="vg-login-brand"><BrandMark size={96}/></div><h1 className="vg-login-word">VARANGYM</h1><div className="vg-login-motto">PLAN · TRAIN · PROGRESS</div></>
   const wrap={display:'flex',flexDirection:'column',justifyContent:'center',textAlign:'center'}
   if(DEMO)return <div className="narrow vg-login" style={wrap}><LanguageSelect/>{head}<div className="muted">{t('Live demo — everything stays in this browser.')}</div><Button variant="primary" icon="sparkles" onClick={()=>setGuest(true)}>{t('Start the demo')}</Button><div className="dim small"><a href={REPO} target="_blank" rel="noopener">{t('VARANGYM source & licenses →')}</a></div></div>
   return <div className="narrow vg-login" style={wrap}>

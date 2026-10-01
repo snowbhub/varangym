@@ -7,6 +7,7 @@ import { t, dateLocale } from '../lib/i18n.js'
 import { bwSheet, goalSheet, dayOverrideSheet, calendarSheet, startFlow, starterPlanSheet, bwDeltaColor } from '../sheets.jsx'
 import LineChart from '../components/LineChart.jsx'
 import Icon from '../components/Icon.jsx'
+import ProfileAvatar from '../components/ProfileAvatar.jsx'
 import { Button } from '../components/ui.jsx'
 import { tappable } from '../lib/use-sheet-keyboard.js'
 import { glyphOf } from '../lib/glyphs.js'
@@ -17,6 +18,7 @@ export default function Home() {
   const S = useStore(s => s.S)
   const user = useStore(s => s.user)
   const [weekOffset, setWeekOffset] = useState(0)
+  const displayName = String(S.profileName || user?.name || '').trim()
 
   const today = new Date()
   const todayRoutines = effectiveRoutines(S, todayISO())
@@ -53,8 +55,8 @@ export default function Home() {
 
   return <div className="narrow">
     <div className="hdr">
-      <div><h1>{user ? t('Hi {0}', user.name) : 'VARANGYM'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
-      <button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>
+      <div><h1>{user ? t('Hi {0}', displayName || user.name) : 'VARANGYM'}</h1><div className="sub">{today.toLocaleDateString(dateLocale(), { weekday: 'long', day: 'numeric', month: 'long' })}</div></div>
+      {user?<button className="vg-profile-button" onClick={() => nav('/settings')} aria-label={t('Settings')}><ProfileAvatar src={S.profileAvatar} name={displayName||user.name} size={42}/></button>:<button className="iconbtn" onClick={() => nav('/settings')} aria-label={t('Settings')}><Icon name="gear" /></button>}
     </div>
 
     <div className="card">
