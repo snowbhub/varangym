@@ -26,7 +26,7 @@ export default function UnifiedSettings(){
   const [mode,setModeState]=useState(()=>getRoleMode())
   const [subscriptions,setSubscriptions]=useState([])
 
-  // The old green is intentionally retired. Existing profiles are upgraded once and synced.
+  // The retired lime key is silently migrated to the single VARANGYM identity green.
   useEffect(()=>{if(!accent||accent==='lime')update(s=>{s.accent='varangym'})},[accent])
   useEffect(()=>{
     if(!user)return
@@ -40,6 +40,8 @@ export default function UnifiedSettings(){
   },[])
 
   const access=useMemo(()=>platformAccess(identity),[identity])
+  // Role switches are entitlements, not advertising. A normal athlete sees no admin/coach/business rows;
+  // upgrading lives exclusively behind Manage subscription.
   const effectiveAccess={platformAdmin:!!(access.platformAdmin||user?.admin),business:!!access.business,trainer:!!access.trainer}
   const primary=useMemo(()=>subscriptions.find(x=>x.status==='trialing')||subscriptions.find(x=>x.status==='active')||subscriptions[0]||null,[subscriptions])
   const switchMode=next=>{setRoleMode(next);setModeState(next||null);nav(next?roleRoute(next,'home'):'/home',{replace:true})}
@@ -56,7 +58,7 @@ export default function UnifiedSettings(){
       {effectiveAccess.platformAdmin&&<Row icon="wrench" iconTint="var(--acc)" title={p('adminPanel')} subtitle={t('Platform, finances, users and exercises')} accessory={mode==='admin'?'check':'chevron'} onClick={()=>switchMode('admin')}/>} 
       {effectiveAccess.business&&<Row icon="personCircle" iconTint="var(--indigo)" title={p('businessPanel')} subtitle={t('Organization, trainers, clients and analytics')} accessory={mode==='business'?'check':'chevron'} onClick={()=>switchMode('business')}/>} 
       {effectiveAccess.trainer&&<Row icon="chartLine" iconTint="var(--blue)" title={p('coachPanel')} subtitle={t('Clients, programs, progress and invites')} accessory={mode==='trainer'?'check':'chevron'} onClick={()=>switchMode('trainer')}/>} 
-      <Row title={p('manageSubscription')} subtitle={`${subLabel} · ${subNote}`} accessory="chevron" onClick={()=>nav('/subscription')}/>
+      <Row icon="creditCard" iconTint="var(--acc)" title={p('manageSubscription')} subtitle={`${subLabel} · ${subNote}`} accessory="chevron" onClick={()=>nav('/subscription')}/>
       <Row icon="signOut" iconTint="var(--red)" title={p('signOut')} danger onClick={logout}/>
       <Row icon="shield" iconTint="var(--red)" title={p('signOutAll')} subtitle={t('Ends this profile’s sessions on all your devices.')} danger onClick={logoutAll}/>
     </Section>}
