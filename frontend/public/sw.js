@@ -37,8 +37,8 @@ self.addEventListener('push', e => {
     try { for (const n of await self.registration.getNotifications({ tag })) n.close() } catch {}
     await self.registration.showNotification(data.title || 'VARANGYM', {
       body: data.body || '',
-      icon: 'varangym-180.png',
-      badge: 'varangym-180.png',
+      icon: 'varangym-mark.svg?v=7',
+      badge: 'varangym-mark.svg?v=7',
       tag,
       renotify: true
     })
