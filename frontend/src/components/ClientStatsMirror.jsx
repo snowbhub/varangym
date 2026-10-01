@@ -4,7 +4,7 @@ import {
   lastBW, streakWeeks, modeOf, metricModeForEntry, metricRowsForEntry, bestWeightForEntry,
 } from '../lib/history.js'
 import { fmtNum, todayISO, weekStartOf } from '../lib/format.js'
-import { t, exerciseNameFor } from '../lib/i18n.js'
+import { t, exerciseNameFor, useLang } from '../lib/i18n.js'
 import { loadOfWorkouts, muscleBalanceWindow, rankOf, MUSCLE_NAME } from '../lib/muscles.js'
 import { fatigueOf, strengthOf, STRENGTH_FLOOR, LB_TO_KG } from '../lib/recovery.js'
 import { isWarmupRow } from '../lib/workout-model.js'
@@ -85,13 +85,13 @@ function MuscleAnalytics({ S }) {
   const topStrength = Object.keys(strength).sort((a, b) => n(strength[b]) - n(strength[a])).slice(0, 5)
   const lowStrength = Object.keys(strength).filter(x => n(strength[x]) < 1).sort((a, b) => n(strength[a]) - n(strength[b])).slice(0, 7)
   const topFatigue = Object.keys(fatigue).filter(x => n(fatigue[x]) > 0).sort((a, b) => n(fatigue[b]) - n(fatigue[a])).slice(0, 7)
-  const age = slug => latest[slug] == null ? '—' : `${Math.max(0, Math.floor((now - latest[slug]) / msDay))} дн.`
+  const age = slug => latest[slug] == null ? '—' : `${Math.max(0, Math.floor((now - latest[slug]) / msDay))} ${t('days')}`
 
   return <div className="card">
     <div className="row between" style={{ marginBottom: 10 }}>
       <div>
         <h2 style={{ margin: 0 }}>{view === 'balance' ? t('Muscle balance') : view === 'fatigue' ? t('Fatigue') : t('Strength')}</h2>
-        <div className="small dim">{S.body === 'female' ? 'Жіночий профіль' : 'Чоловічий профіль'} · read-only</div>
+        <div className="small dim">{S.body === 'female' ? t('Female profile') : t('Male profile')} · read-only</div>
       </div>
       <span className="tag acc">{S.body === 'female' ? '♀' : '♂'}</span>
     </div>
@@ -118,16 +118,16 @@ function MuscleAnalytics({ S }) {
     </> : view === 'fatigue' ? <>
       <BodyMap className="hm-fatigue" load={fatigue} thresholds={FATIGUE_LEVELS} body={S.body} />
       <div className="hm-legend hm-fatigue" aria-label={t('Fatigue')}><span>{t('Fatigued')}</span><div className="hm-c l4"/><span>{t('Recovering')}</span><div className="hm-c l2"/><span>{t('Ready')}</span><div className="hm-c l0"/></div>
-      <div className="small dim" style={{ margin: '8px 0 10px' }}>Втома розрахована з тих самих завершених підходів, які бачить клієнт.</div>
+      <div className="small dim" style={{ margin: '8px 0 10px' }}>{t('Fatigue is calculated from the same completed sets the client sees.')}</div>
       {topFatigue.length ? topFatigue.map(slug => <div className="mrow" key={slug}>
         <span className="nm">{t(MUSCLE_NAME[slug])}</span>
         <span className="bar"><i style={{ width: Math.round(n(fatigue[slug]) * 100) + '%' }} /></span>
         <span className="v">{Math.round(n(fatigue[slug]) * 100)}% · {age(slug)}</span>
-      </div>) : <div className="muted small">Ще немає навантаження для розрахунку втоми.</div>}
+      </div>) : <div className="muted small">{t('Not enough load yet to calculate fatigue.')}</div>}
     </> : <>
       <BodyMap className="hm-strength" load={strength} thresholds={STRENGTH_LEVELS} body={S.body} />
       <div className="hm-legend hm-strength"><span>100%</span><div className="hm-c l4"/><div className="hm-c l3"/><div className="hm-c l2"/><div className="hm-c l1"/><div className="hm-c l0"/><span>50%</span></div>
-      <div className="small dim" style={{ margin: '8px 0 10px' }}>Збережена сила: 100% після недавнього тренування, потім поступово знижується до базового рівня.</div>
+      <div className="small dim" style={{ margin: '8px 0 10px' }}>{t('Retained strength starts at 100% after recent training and gradually falls toward baseline.')}</div>
       {(lowStrength.length ? lowStrength : topStrength).map(slug => <div className="mrow" key={slug}>
         <span className="nm">{t(MUSCLE_NAME[slug])}</span>
         <span className="bar"><i style={{ width: Math.round(n(strength[slug]) * 100) + '%' }} /></span>
@@ -191,12 +191,13 @@ function ExerciseProgress({ S }) {
       <SelectRow title={t('Exercise')} sheetTitle={t('Exercise progress')} value={cur.id} onChange={setSelected} stackedValue options={rows.map(x => ({ value: x.id, label: `${x.name} — ${x.sessions}` }))} search={{ placeholder: t('Search…'), label: t('Search…'), emptyLabel: t('No match'), match: (o, q) => String(o.label || '').toLowerCase().includes(String(q || '').toLowerCase()) }} />
     </div>
     <div className="chart"><LineChart points={cur.points} h={180} unit={cur.unit || S.unit} /></div>
-    <div className="row between small"><span className="dim">{cur.sessions} тренувань з цією вправою</span><span>{t('Best:')} <b className="accent">{fmtNum(best)} {cur.unit || S.unit}</b></span></div>
+    <div className="row between small"><span className="dim">{cur.sessions} {t('workouts with this exercise')}</span><span>{t('Best:')} <b className="accent">{fmtNum(best)} {cur.unit || S.unit}</b></span></div>
     <div style={{ marginTop: 8 }}>{[...cur.points].reverse().slice(0, 5).map((p, i) => <div key={`${p.t}:${i}`} className="row between small" style={{ padding: '6px 0', borderBottom: 'var(--hair) solid var(--sep)' }}><span className="muted">{p.d || ''}</span><span>{fmtNum(p.y)} {cur.unit || S.unit}</span></div>)}</div>
   </div>
 }
 
 export default function ClientStatsMirror({ state, client }) {
+  useLang()
   const S = useMemo(() => normalizedState(state), [state])
   const [range, setRange] = useState(90)
   const now = Date.now(), workouts = S.workouts
@@ -208,9 +209,9 @@ export default function ClientStatsMirror({ state, client }) {
 
   return <>
     <div className="card" style={{ marginBottom: 12 }}>
-      <div className="lbl2">Статистика клієнта · read-only</div>
-      <div className="big" style={{ fontSize: 27 }}>{client?.display_name || client?.name || 'Клієнт'}</div>
-      <div className="ss">Дані беруться безпосередньо з профілю клієнта. Нічого на цьому екрані не змінює його історію.</div>
+      <div className="lbl2">{t('Client statistics')} · read-only</div>
+      <div className="big" style={{ fontSize: 27 }}>{client?.display_name || client?.name || t('Client')}</div>
+      <div className="ss">{t('Data comes directly from the client profile. Nothing on this screen changes their history.')}</div>
     </div>
 
     <div className="tiles">
@@ -235,8 +236,8 @@ export default function ClientStatsMirror({ state, client }) {
       {latest.length ? latest.map(w => {
         const sets = (w.entries || []).reduce((a, e) => a + (e.sets || []).filter(done).length, 0)
         const volume = (w.entries || []).reduce((a, e) => a + (e.sets || []).filter(done).reduce((s, x) => s + n(x.w) * Math.max(1, n(x.r)), 0), 0)
-        return <div className="lrow" key={w.id || `${w.d}:${w.start}`}><span className="lrow-i" style={{ '--tint': 'var(--acc)' }}><Icon name="dumbbell" /></span><span className="lrow-m"><span className="lrow-t">{w.name || 'Workout'}</span><span className="lrow-s">{w.d || ''} · {sets} підходів</span></span><span className="lrow-v">{volume > 0 ? `${fmtNum(Math.round(volume))} ${S.unit}` : '—'}</span></div>
-      }) : <div className="lrow"><span className="lrow-m"><span className="lrow-t">Немає тренувань</span></span></div>}
+        return <div className="lrow" key={w.id || `${w.d}:${w.start}`}><span className="lrow-i" style={{ '--tint': 'var(--acc)' }}><Icon name="dumbbell" /></span><span className="lrow-m"><span className="lrow-t">{w.name || t('Workout')}</span><span className="lrow-s">{w.d || ''} · {sets} {t('sets')}</span></span><span className="lrow-v">{volume > 0 ? `${fmtNum(Math.round(volume))} ${S.unit}` : '—'}</span></div>
+      }) : <div className="lrow"><span className="lrow-m"><span className="lrow-t">{t('No workouts')}</span></span></div>}
     </div></div>
   </>
 }
