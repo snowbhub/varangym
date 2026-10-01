@@ -5,6 +5,7 @@ import './index.css'
 import './varangym-polish.css'
 import './final-mobile-polish.css'
 import './product-v8.css'
+import './brand-v11.css'
 
 // First run uses the VARANGYM identity green. Retire the old lime accent without touching any
 // other saved preference; signed-in language/state still restores through the normal sync layer.
