@@ -2,11 +2,12 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { effectiveRoutineIds, effectiveRoutines } from '../lib/history.js'
 import { todayISO } from '../lib/format.js'
-import { t } from '../lib/i18n.js'
+import { t, useLang } from '../lib/i18n.js'
 import { getRoleMode, roleRoute, viewOf } from '../lib/role-mode.js'
 import Icon from './Icon.jsx'
 
 export default function TabBar({ onStart }) {
+  useLang()
   const nav = useNavigate()
   const loc = useLocation()
   const S = useStore(s => s.S)
@@ -31,33 +32,30 @@ export default function TabBar({ onStart }) {
 
   if (roleMode) {
     const copy = roleMode === 'admin'
-      ? { people: 'Акаунти', dashboard: 'Фінанси', dashboardIcon: 'chart' }
+      ? { people: t('Accounts'), dashboard: t('Finances'), dashboardIcon: 'chart' }
       : roleMode === 'business'
-        ? { people: 'Команда', dashboard: 'Плани', dashboardIcon: 'calendar' }
-        : { people: 'Клієнти', dashboard: 'Програми', dashboardIcon: 'calendar' }
+        ? { people: t('Team'), dashboard: t('Plans'), dashboardIcon: 'calendar' }
+        : { people: t('Clients'), dashboard: t('Programs'), dashboardIcon: 'calendar' }
     const RoleTab = ({ view, icon, label }) => (
       <button className={roleView === view ? 'on' : ''} onClick={() => nav(roleRoute(roleMode, view))}>
         <Icon name={icon} /><span>{label}</span>
       </button>
     )
     return <nav id="tabbar">
-      <RoleTab view="home" icon="house" label="Головна" />
+      <RoleTab view="home" icon="house" label={t('Home')} />
       <RoleTab view="people" icon="personCircle" label={copy.people} />
       <button className={'start' + (roleView === 'dashboard' ? ' on' : '')} onClick={() => nav(roleRoute(roleMode, 'dashboard'))}>
         <span className="cir"><Icon name={copy.dashboardIcon} /></span>
         <span>{copy.dashboard}</span>
       </button>
-      <RoleTab view="stats" icon="chartLine" label="Статистика" />
-      <RoleTab view="exercises" icon="list" label="Вправи" />
+      <RoleTab view="stats" icon="chartLine" label={t('Stats')} />
+      <RoleTab view="exercises" icon="list" label={t('Exercises')} />
     </nav>
   }
 
   const on = k => cur === k || (cur === 'history' && k === 'stats') || (cur === 'settings' && k === 'home') || (cur === 'muscles' && k === 'library')
-
   const startWorkout = () => {
-    if (!S.active) {
-      if (effectiveRoutines(S, todayISO()).some(r => r.ex.length)) { onStart(effectiveRoutineIds(S, todayISO())); return }
-    }
+    if (!S.active && effectiveRoutines(S, todayISO()).some(r => r.ex.length)) { onStart(effectiveRoutineIds(S, todayISO())); return }
     nav('/workout')
   }
   const Tab = ({ k, icon, to, label }) => (
@@ -66,16 +64,14 @@ export default function TabBar({ onStart }) {
     </button>
   )
 
-  return (
-    <nav id="tabbar">
-      <Tab k="home" icon="house" to="/home" label={t('Home')} />
-      <Tab k="plan" icon="calendar" to="/plan" label={t('Plan')} />
-      <button className={'start' + (S.active ? ' rec' : '') + (S.active && cur === 'workout' ? ' on' : '')} onClick={startWorkout}>
-        <span className="cir"><Icon name={S.active ? (cur === 'workout' ? 'dumbbell' : 'play') : 'dumbbell'} /></span>
-        <span>{S.active ? (cur === 'workout' ? t('Workout') : t('Resume')) : t('Start')}</span>
-      </button>
-      <Tab k="stats" icon="chart" to="/stats" label={t('Stats')} />
-      <Tab k="library" icon="list" to="/library" label={t('Exercises')} />
-    </nav>
-  )
+  return <nav id="tabbar">
+    <Tab k="home" icon="house" to="/home" label={t('Home')} />
+    <Tab k="plan" icon="calendar" to="/plan" label={t('Plan')} />
+    <button className={'start' + (S.active ? ' rec' : '') + (S.active && cur === 'workout' ? ' on' : '')} onClick={startWorkout}>
+      <span className="cir"><Icon name={S.active ? (cur === 'workout' ? 'dumbbell' : 'play') : 'dumbbell'} /></span>
+      <span>{S.active ? (cur === 'workout' ? t('Workout') : t('Resume')) : t('Start')}</span>
+    </button>
+    <Tab k="stats" icon="chart" to="/stats" label={t('Stats')} />
+    <Tab k="library" icon="list" to="/library" label={t('Exercises')} />
+  </nav>
 }

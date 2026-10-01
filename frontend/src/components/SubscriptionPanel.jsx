@@ -1,54 +1,69 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../lib/api.js'
+import { dateLocale, useLang } from '../lib/i18n.js'
+import { productText as p } from '../lib/product-copy.js'
 import { businessMemberships, loadPlatformIdentity, trainerMemberships } from '../lib/platform-role.js'
 import { useUI } from '../store/useUI.js'
 import { Button } from './ui.jsx'
 import Icon from './Icon.jsx'
+import PlanPicker from './PlanPicker.jsx'
 
-const money=(cents,currency='USD')=>new Intl.NumberFormat('uk-UA',{style:'currency',currency,maximumFractionDigits:2}).format(Number(cents||0)/100)
-const date=v=>{if(!v)return'—';try{return new Date(v).toLocaleDateString('uk-UA')}catch{return'—'}}
 const active=s=>['active','trialing'].includes(String(s?.status||''))
 const RANK={organization:3,trainer:2,solo:1}
-
-const COPY={
-  solo:{title:'Solo',audience:'Для власних тренувань',pitch:'Усе потрібне для стабільного прогресу без тренера.',features:['План і календар тренувань','Детальна статистика, рекорди та історія','Вага, мʼязовий баланс і прогрес','Повна бібліотека вправ та офлайн-медіа']},
-  trainer:{title:'Coach',audience:'Для персональних тренерів',pitch:'Керуйте клієнтами, програмами й прогресом з одного місця.',features:['Клієнти та їхня детальна статистика','Окрема програма для кожного клієнта','Коди привʼязки та контроль доступу','Coach dashboard, аналітика й шаблони']},
-  organization:{title:'Business',audience:'Для студій, залів і команд',pitch:'Команда тренерів, клієнти, аналітика й доступи в одному workspace.',features:['Тренери й клієнти однієї організації','Business dashboard та командна аналітика','Керування доступами, планами й кодами','Фінансові показники та масштабування команди']},
-}
-const RECOMMENDED=new Set(['solo_monthly','coach_10','business_5_50'])
-const FRIENDLY={solo_monthly:'Solo Monthly',solo_lifetime:'Solo Lifetime',coach_5:'Coach 5',coach_10:'Coach 10',coach_20:'Coach 20',business_5_50:'Business 5 / 50',business_10_100:'Business 10 / 100'}
-
-function planTitle(p){return p.metadata?.label||FRIENDLY[p.code]||String(p.code||'VARANGYM').replaceAll('_',' ')}
-function planPrice(p){return p.billing_kind==='lifetime'?money(p.price_cents,p.currency):`${money(p.price_cents,p.currency)} / міс.`}
-function planCapacity(p){if(p.audience==='trainer')return`до ${p.client_limit||0} клієнтів`;if(p.audience==='organization')return`${p.trainer_limit||0} тренерів · ${p.client_limit||0} клієнтів`;return p.billing_kind==='lifetime'?'разова оплата':'щомісячна підписка'}
-function planByCode(plans,code){return plans.find(p=>p.code===code)||null}
-function audienceOf(plans,sub){return planByCode(plans,sub?.plan_code)?.audience||sub?.plan_metadata?.audience||'solo'}
-
-function PlanCard({plan,currentCodes,paymentsConfigured,busy,onChoose}){
-  const copy=COPY[plan.audience]||COPY.solo,isCurrent=currentCodes.has(plan.code),recommended=RECOMMENDED.has(plan.code),features=[...copy.features]
-  if(plan.audience==='trainer')features.unshift(`Ліміт тарифу: ${plan.client_limit||0} активних клієнтів`)
-  if(plan.audience==='organization')features.unshift(`Ліміт тарифу: ${plan.trainer_limit||0} тренерів / ${plan.client_limit||0} клієнтів`)
-  if(plan.billing_kind==='lifetime')features.unshift('Одноразова оплата — без щомісячних списань')
-  return <article className={`vg-plan-card ${plan.audience==='organization'?'business':''} ${recommended?'recommended':''}`}>
-    {recommended&&<span className="vg-recommended">ПОПУЛЯРНИЙ</span>}
-    <div className="vg-plan-top">
-      <div><div className="vg-plan-name">{planTitle(plan)}</div><div className="vg-plan-audience">{copy.audience} · {planCapacity(plan)}</div></div>
-      <div className="vg-plan-price"><b>{planPrice(plan)}</b><span>{plan.billing_kind==='lifetime'?'один раз':'за місяць'}</span></div>
-    </div>
-    <div className="vg-plan-features">{features.slice(0,6).map(x=><div className="vg-plan-feature" key={x}><Icon name="check"/><span>{x}</span></div>)}</div>
-    <div className="vg-plan-actions"><Button variant={isCurrent?'tinted':'primary'} disabled={isCurrent||!!busy||!paymentsConfigured} onClick={()=>onChoose(plan)}>{isCurrent?'Підключено':busy===plan.code?'Відкриваю оплату…':paymentsConfigured?'Обрати тариф':'Оплата скоро'}</Button></div>
-  </article>
+const FRIENDLY={solo_monthly:'VARANGYM Solo Monthly',solo_lifetime:'VARANGYM Solo Lifetime',coach_5:'VARANGYM Coach Starter',coach_10:'VARANGYM Coach Pro',coach_20:'VARANGYM Coach Scale',business_5_50:'VARANGYM Business Studio',business_10_100:'VARANGYM Business Club'}
+const money=(cents,currency='USD')=>new Intl.NumberFormat(dateLocale(),{style:'currency',currency,maximumFractionDigits:2}).format(Number(cents||0)/100)
+const date=v=>{if(!v)return'—';try{return new Date(v).toLocaleDateString(dateLocale())}catch{return'—'}}
+const planByCode=(plans,code)=>plans.find(x=>x.code===code)||null
+const audienceOf=(plans,sub)=>planByCode(plans,sub?.plan_code)?.audience||sub?.plan_metadata?.audience||'solo'
+const familyCopy=a=>a==='trainer'?['VARANGYM Coach',['coachF1','coachF2','coachF3','coachF4']]:a==='organization'?['VARANGYM Business',['businessF1','businessF2','businessF3','businessF4']]:['VARANGYM Solo',['soloF1','soloF2','soloF3','soloF4']]
+const capacity=plan=>{
+  if(!plan)return'—'
+  if(plan.audience==='trainer')return `${plan.client_limit||0} ${p('clients')}`
+  if(plan.audience==='organization')return `${plan.trainer_limit||0} ${p('trainers')} · ${plan.client_limit||0} ${p('clients')}`
+  return `1 ${p('profile')}`
 }
 
 export default function SubscriptionPanel(){
+  useLang()
   const toast=useUI(s=>s.toast)
-  const [identity,setIdentity]=useState(null),[status,setStatus]=useState(null),[plans,setPlans]=useState([]),[paymentsConfigured,setPaymentsConfigured]=useState(false),[busy,setBusy]=useState('')
-  const load=()=>Promise.allSettled([loadPlatformIdentity(),api('/api/trial/status'),api('/api/billing/plans')]).then(([me,st,pl])=>{if(me.status==='fulfilled')setIdentity(me.value);if(st.status==='fulfilled')setStatus(st.value);if(pl.status==='fulfilled'){setPlans(pl.value.plans||[]);setPaymentsConfigured(!!pl.value.paymentsConfigured)}})
+  const [identity,setIdentity]=useState(null),[status,setStatus]=useState(null),[plans,setPlans]=useState([]),[paymentsConfigured,setPaymentsConfigured]=useState(false),[busy,setBusy]=useState(''),[usage,setUsage]=useState(null)
+  const load=()=>Promise.allSettled([loadPlatformIdentity(),api('/api/trial/status'),api('/api/billing/plans')]).then(([me,st,pl])=>{
+    if(me.status==='fulfilled')setIdentity(me.value)
+    if(st.status==='fulfilled')setStatus(st.value)
+    if(pl.status==='fulfilled'){setPlans(pl.value.plans||[]);setPaymentsConfigured(!!pl.value.paymentsConfigured)}
+  })
   useEffect(()=>{load().catch(()=>{})},[])
   const trainers=useMemo(()=>trainerMemberships(identity),[identity]),businesses=useMemo(()=>businessMemberships(identity),[identity])
   const subs=status?.subscriptions||[],activeSubs=subs.filter(active)
   const currentCodes=useMemo(()=>new Set(activeSubs.map(x=>x.plan_code).filter(Boolean)),[activeSubs])
   const primary=useMemo(()=>[...activeSubs].sort((a,b)=>RANK[audienceOf(plans,b)]-RANK[audienceOf(plans,a)])[0]||subs[0]||null,[activeSubs,subs,plans])
+  const primaryPlan=planByCode(plans,primary?.plan_code)
+  const audience=audienceOf(plans,primary),[familyName,featureKeys]=familyCopy(audience)
+  const currentName=primaryPlan?(FRIENDLY[primaryPlan.code]||primaryPlan.metadata?.label||familyName):(primary?.plan_metadata?.label||p('noPlan'))
+  const priceLabel=primaryPlan?(primaryPlan.billing_kind==='lifetime'?money(primaryPlan.price_cents,primaryPlan.currency):`${money(primaryPlan.price_cents,primaryPlan.currency)} / ${p('monthly')}`):'—'
+  const billingType=primaryPlan?.billing_kind==='lifetime'?p('lifetimeBilling'):primaryPlan?p('monthlyBilling'):'—'
+  const statusLabel=primary?.status==='trialing'?p('trial'):primary?.status==='active'?p('active'):p('inactive')
+  const nextDate=primary?.status==='trialing'?primary?.trial_ends_at:primary?.current_period_end
+
+  useEffect(()=>{
+    setUsage(null)
+    if(!identity||!primaryPlan)return
+    const membership=audience==='organization'?businesses[0]:audience==='trainer'?(trainers.find(x=>x.workspace_type==='independent_trainer')||trainers[0]):null
+    if(!membership?.workspace_id){if(audience==='solo')setUsage({solo:1});return}
+    let dead=false
+    api(`/api/insights/workspace?workspaceId=${encodeURIComponent(membership.workspace_id)}`).then(d=>{
+      if(dead)return
+      setUsage({clients:(d.clients||[]).length,trainers:(d.trainers||[]).length})
+    }).catch(()=>{})
+    return()=>{dead=true}
+  },[identity,primaryPlan?.code,audience])
+
+  const usageLabel=()=>{
+    if(!primaryPlan)return'—'
+    if(audience==='trainer')return usage?`${p('usedOf',usage.clients||0,primaryPlan.client_limit||0)} ${p('clients')}`:`— / ${primaryPlan.client_limit||0} ${p('clients')}`
+    if(audience==='organization')return usage?`${p('usedOf',usage.trainers||0,primaryPlan.trainer_limit||0)} ${p('trainers')} · ${p('usedOf',usage.clients||0,primaryPlan.client_limit||0)} ${p('clients')}`:`${primaryPlan.trainer_limit||0} ${p('trainers')} · ${primaryPlan.client_limit||0} ${p('clients')}`
+    return `1 / 1 ${p('profile')}`
+  }
 
   const checkout=async plan=>{
     setBusy(plan.code)
@@ -62,43 +77,28 @@ export default function SubscriptionPanel(){
         const workspaceId=businesses[0]?.workspace_id
         if(workspaceId)body.workspaceId=workspaceId
       }
-      // Coach/Business workspaces are provisioned only after a successful payment. Opening and
-      // abandoning checkout never grants a management role.
       const d=await api('/api/billing/checkout',{method:'POST',body:JSON.stringify(body)})
       if(d.url)location.href=d.url
-    }catch(e){toast(e.message||'Не вдалося відкрити оплату')}finally{setBusy('')}
+    }catch(e){toast(e.message||p('paymentSoon'))}finally{setBusy('')}
   }
-
-  const grouped={solo:plans.filter(p=>p.audience==='solo'),trainer:plans.filter(p=>p.audience==='trainer'),organization:plans.filter(p=>p.audience==='organization')}
-  const primaryPlan=planByCode(plans,primary?.plan_code)
-  const currentLabel=primaryPlan?planTitle(primaryPlan):primary?.plan_metadata?.label||primary?.plan_code||'Без активного тарифу'
-  const currentStatus=primary?.status==='trialing'?`Trial до ${date(primary.trial_ends_at)}`:primary?.current_period_end?`Оплачено до ${date(primary.current_period_end)}`:primary?.status==='active'?'Активний':'Можна вибрати тариф нижче'
+  const openPlans=()=>useUI.getState().openSheet(close=><PlanPicker close={close} plans={plans} paymentsConfigured={paymentsConfigured} currentCodes={currentCodes} busy={busy} onChoose={async plan=>{close();await checkout(plan)}}/>)
 
   return <div className="vg-subscription-manager">
-    <div className="card vg-subscription-hero">
-      <div className="vg-plan-kicker">VARANGYM Membership</div>
-      <div className="vg-plan-title">Тариф, який росте разом з вами</div>
-      <div className="vg-plan-sub">Почніть із Solo, перейдіть на Coach, коли зʼявляться клієнти, або на Business, коли будуєте команду. Прогрес і дані залишаються у вашому акаунті.</div>
-      <div className="vg-current-plan"><div><strong>{currentLabel}</strong><small>{currentStatus}{activeSubs.length>1?` · ${activeSubs.length} активні продукти`:''}</small></div><a className="btn tinted sm" href="#vg-all-plans">Змінити тариф</a></div>
-      {primary?.status==='trialing'&&<div className="vg-billing-note">30-денний trial не списує гроші автоматично. До завершення trial можна вибрати будь-який платний тариф нижче.</div>}
-      {!paymentsConfigured&&<div className="vg-billing-note">Онлайн-оплата ще не активована в production. Тарифи, ціни та ліміти вже показані; після підключення Stripe кнопки оплати стануть активними без зміни акаунта.</div>}
-    </div>
-
-    <section className="vg-plan-section" id="vg-all-plans">
-      <div className="vg-plan-section-head"><div><h2>Усі тарифи</h2><div className="small muted">Одна сторінка замість окремих рядків у налаштуваннях</div></div><p>Порівняйте рівні та виберіть потрібний</p></div>
+    <section className="card vg-current-subscription">
+      <div className="vg-plan-kicker">VARANGYM MEMBERSHIP</div>
+      <div className="vg-current-head"><div><span>{p('currentPlan')}</span><h2>{currentName}</h2></div><span className={`vg-sub-status ${primary?.status||'none'}`}>{statusLabel}</span></div>
+      <div className="vg-current-grid">
+        <div><span>{p('price')}</span><strong>{priceLabel}</strong></div>
+        <div><span>{p('billingType')}</span><strong>{billingType}</strong></div>
+        <div><span>{primary?.status==='trialing'?p('trialEnds'):p('renews')}</span><strong>{nextDate?date(nextDate):'—'}</strong></div>
+        <div><span>{p('billingStatus')}</span><strong>{primary?.cancel_at_period_end?p('cancelsAtEnd'):statusLabel}</strong></div>
+        <div><span>{p('capacity')}</span><strong>{capacity(primaryPlan)}</strong></div>
+        <div><span>{p('usage')}</span><strong>{usageLabel()}</strong></div>
+      </div>
+      <div className="vg-current-benefits"><h3>{p('benefits')}</h3>{featureKeys.map(k=><div key={k}><Icon name="check"/><span>{p(k)}</span></div>)}</div>
+      {primary?.status==='trialing'&&<div className="vg-billing-note">{p('trialNote')}</div>}
+      {!paymentsConfigured&&<div className="vg-billing-note">{p('paymentSoon')}</div>}
+      <Button variant="primary" onClick={openPlans}>{p('changePlan')}</Button>
     </section>
-    {(['solo','trainer','organization']).map(a=>{const copy=COPY[a],rows=grouped[a]||[];if(!rows.length)return null;return <section className="vg-plan-section" key={a}>
-      <div className="vg-plan-section-head"><div><h2>{copy.title}</h2><div className="small muted">{copy.audience}</div></div><p>{copy.pitch}</p></div>
-      <div className="vg-plan-grid">{rows.map(p=><PlanCard key={p.code} plan={p} currentCodes={currentCodes} paymentsConfigured={paymentsConfigured} busy={busy} onChoose={checkout}/>)}</div>
-    </section>})}
-
-    <section className="vg-plan-section"><div className="vg-plan-section-head"><div><h2>Що змінюється між рівнями</h2><div className="small muted">Без технічних кодів тарифів</div></div></div><div className="vg-plan-compare">
-      <div className="vg-compare-row"><span>Особистий план, тренування, прогрес</span><span>Усі</span></div>
-      <div className="vg-compare-row"><span>Вага, рекорди, офлайн-вправи</span><span>Усі</span></div>
-      <div className="vg-compare-row"><span>Клієнти й окремі програми</span><span>Coach · Business</span></div>
-      <div className="vg-compare-row"><span>Read-only статистика клієнтів</span><span>Coach · Business</span></div>
-      <div className="vg-compare-row"><span>Тренери та організація</span><span>Business</span></div>
-      <div className="vg-compare-row"><span>Командна та фінансова аналітика</span><span>Business</span></div>
-    </div></section>
   </div>
 }
