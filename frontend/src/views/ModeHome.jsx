@@ -13,11 +13,11 @@ const modeSubtitle=mode=>mode==='admin'?t('Platform management'):mode==='busines
 export function RoleModeRoot({mode}){
   useLang()
   const nav=useNavigate(),loc=useLocation(),view=viewOf(loc.search),isHome=view==='home'
-  const roleNav=mode==='admin'[
+  const roleNav=mode==='admin' ? [
     {view:'people',icon:'personCircle',title:t('Users')},{view:'trainers',icon:'chartLine',title:t('Trainers')},{view:'businesses',icon:'personCircle',title:t('Businesses')},{view:'invites',icon:'key',title:t('Invites')},{view:'dashboard',icon:'creditCard',title:t('Payments')},{view:'stats',icon:'chartLine',title:t('Analytics')},{view:'exercises',icon:'list',title:t('Exercises')}
-  ]:mode==='business'?[
+  ] : mode==='business' ? [
     {view:'business-trainers',icon:'personCircle',title:t('Trainers')},{view:'business-clients',icon:'personCircle',title:t('Clients')},{view:'business-plans',icon:'calendar',title:t('Plans')},{view:'business-payments',icon:'creditCard',title:t('Payments')},{view:'stats',icon:'chartLine',title:t('Stats')},{view:'exercises',icon:'list',title:t('Exercises')}
-  ]:[
+  ] : [
     {view:'people',icon:'personCircle',title:t('Clients')},{view:'dashboard',icon:'calendar',title:t('Programs')},{view:'trainer-codes',icon:'key',title:t('Invites')},{view:'stats',icon:'chartLine',title:t('Analytics')},{view:'exercises',icon:'list',title:t('Exercises')}
   ]
   const adminQuick=[
