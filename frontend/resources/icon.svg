@@ -1,7 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512" role="img" aria-label="VARANGYM">
   <rect width="512" height="512" rx="116" fill="#090b0d"/>
-  <path d="M78 91 215 392c15 34 66 34 82 0L434 91h-95l-83 198-84-198Z" fill="#32e56d"/>
-  <path d="M300 184c21-43 49-68 82-76 18-4 34-2 49 5l18-15 30 24-24 26c10 12 16 26 17 42l-43 12c-5-18-16-30-32-37-18-8-36-7-53 3-15 9-28 24-38 45l-25-18Z" fill="#32e56d"/>
-  <path d="M371 157c13-9 28-12 45-8l-18 17c-10-2-19-5-27-9Z" fill="#090b0d"/>
-  <circle cx="424" cy="132" r="5" fill="#090b0d"/>
+  <path fill="#32e56d" d="M78 88h70l116 261c7 17 17 25 29 25 12 0 23-8 31-24l18-35 58 30-57 78c-22 30-52 43-87 38-33-5-57-25-71-58L69 108Z"/>
+  <path d="M291 379c26-35 44-70 62-104 20-39 42-70 76-92" fill="none" stroke="#32e56d" stroke-width="66" stroke-linecap="round" stroke-linejoin="round"/>
+  <path fill="#32e56d" d="M400 166l31-16-7-23 31-16 34 7-14 17 29 11-25 14 25 10-27 27-39-13-27 13-15-19Z"/>
+  <circle cx="461" cy="137" r="5" fill="#090b0d"/>
+  <circle cx="490" cy="157" r="3" fill="#090b0d"/>
 </svg>
