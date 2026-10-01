@@ -1,8 +1,8 @@
 /* Final mobile pass: intentional swipe surfaces, dense dashboards and overflow safety. */
 
 /* The geo comparison is one swipeable full-width card on a phone instead of two tall blocks
-   or a clipped second column. The carousel is deliberate (snap-to-card), unlike accidental
-   horizontal page overflow. */
+   or a clipped second column. Only the six strongest locations are shown in each summary card;
+   this keeps the whole card readable without a second vertical scrollbar. */
 @media (max-width: 560px) {
   .vg-mode-admin.vg-view-stats .vg-role-console-body > .narrow > .grid2:last-of-type,
   .vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow) {
@@ -28,9 +28,12 @@
     max-width: 100% !important;
     scroll-snap-align: start;
     scroll-snap-stop: always;
-    max-height: 330px !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+    max-height: none !important;
+    overflow: hidden !important;
+  }
+  /* Distribution has a title div first; mrow divs begin at div #2, so #8 is row seven. */
+  .vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow) > .card > .mrow:nth-of-type(n+8) {
+    display: none !important;
   }
 }
 
