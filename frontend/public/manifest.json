@@ -10,7 +10,7 @@
   "background_color": "#090b0d",
   "theme_color": "#090b0d",
   "icons": [
-    { "src": "varangym-mark.svg?v=5", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
-    { "src": "varangym-180.png?v=5", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+    { "src": "varangym-mark.svg?v=8", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "varangym-180.png?v=8", "sizes": "180x180", "type": "image/png", "purpose": "any" }
   ]
 }
