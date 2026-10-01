@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { MOBILE } from './lib/mobile.js'
 import './index.css'
 import './varangym-polish.css'
+import './product-v6.css'
 
 // New installs start with the VARANGYM brand accent. Language is still selectable before login;
 // Ukrainian remains the first-run default for this deployment, while signed-in profiles restore
