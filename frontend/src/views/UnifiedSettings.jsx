@@ -12,20 +12,26 @@ const MODE_COPY={
   business:{title:'Business панель',subtitle:'Організація, тренери, клієнти та аналітика',icon:'personCircle',tint:'var(--indigo)'},
   trainer:{title:'Coach панель',subtitle:'Клієнти, програми, прогрес і коди',icon:'chartLine',tint:'var(--blue)'},
 }
+const PLAN_NAME={
+  solo_monthly:'Solo Monthly',solo_lifetime:'Solo Lifetime',coach_5:'Coach 5',coach_10:'Coach 10',coach_20:'Coach 20',business_5_50:'Business 5 / 50',business_10_100:'Business 10 / 100'
+}
 const modeTitle=m=>m==='admin'?'Admin':m==='business'?'Business':m==='trainer'?'Coach':'Звичайний'
 const date=v=>{if(!v)return'';try{return new Date(v).toLocaleDateString('uk-UA')}catch{return''}}
+const active=s=>['active','trialing'].includes(String(s?.status||''))
+const planRank=s=>{const code=String(s?.plan_code||'');const audience=String(s?.plan_metadata?.audience||'');if(code.startsWith('business_')||audience==='organization')return 3;if(code.startsWith('coach_')||audience==='trainer')return 2;return 1}
+const planName=s=>s?.plan_metadata?.label||PLAN_NAME[s?.plan_code]||String(s?.plan_code||'').replaceAll('_',' ')||'Обрати тариф'
 
 export default function UnifiedSettings(){
   const nav=useNavigate()
   const user=useStore(s=>s.user)
   const [identity,setIdentity]=useState(null)
   const [mode,setModeState]=useState(()=>getRoleMode())
-  const [subscription,setSubscription]=useState(null)
+  const [subscriptions,setSubscriptions]=useState([])
 
   useEffect(()=>{
     if(!user)return
     loadPlatformIdentity().then(setIdentity).catch(()=>{})
-    api('/api/trial/status').then(d=>setSubscription((d.subscriptions||[]).find(x=>['active','trialing'].includes(x.status))||d.subscriptions?.[0]||null)).catch(()=>{})
+    api('/api/trial/status').then(d=>setSubscriptions(d.subscriptions||[])).catch(()=>{})
   },[user?.id])
   useEffect(()=>{
     const sync=e=>setModeState(e?.detail??getRoleMode())
@@ -39,15 +45,23 @@ export default function UnifiedSettings(){
     business:!!access.business,
     trainer:!!access.trainer,
   }
+  const primarySubscription=useMemo(()=>{
+    const activeRows=subscriptions.filter(active)
+    const source=activeRows.length?activeRows:subscriptions
+    return [...source].sort((a,b)=>planRank(b)-planRank(a))[0]||null
+  },[subscriptions])
+  const activeCount=subscriptions.filter(active).length
   const switchMode=next=>{
     setRoleMode(next)
     setModeState(next||null)
     nav(next?roleRoute(next,'home'):'/home',{replace:true})
   }
-  const subLabel=subscription?.plan_metadata?.label||subscription?.plan_code||'Обрати тариф'
-  const subNote=subscription?.status==='trialing'
-    ? `Trial${subscription.trial_ends_at?` до ${date(subscription.trial_ends_at)}`:''}`
-    : subscription?.status==='active'?'Активна підписка':'Solo, Coach або Business'
+  const subLabel=planName(primarySubscription)
+  const subNote=primarySubscription?.status==='trialing'
+    ? `Trial${primarySubscription.trial_ends_at?` до ${date(primarySubscription.trial_ends_at)}`:''}${activeCount>1?` · ще ${activeCount-1} активн.`:''}`
+    : primarySubscription?.status==='active'
+      ? `Активна підписка${activeCount>1?` · ще ${activeCount-1} активн.`:''}`
+      : 'Solo, Coach або Business'
 
   return <div className="narrow vg-unified-settings">
     <div className="hdr"><div style={{flex:1}}><h1>Налаштування</h1><div className="sub">Режим: {modeTitle(mode)} · VARANGYM</div></div></div>

@@ -1,0 +1,73 @@
+/* Final mobile pass: intentional swipe surfaces, dense dashboards and overflow safety. */
+
+/* The geo comparison is one swipeable full-width card on a phone instead of two tall blocks
+   or a clipped second column. The carousel is deliberate (snap-to-card), unlike accidental
+   horizontal page overflow. */
+@media (max-width: 560px) {
+  .vg-mode-admin.vg-view-stats .vg-role-console-body > .narrow > .grid2:last-of-type,
+  .vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow) {
+    display: flex !important;
+    grid-template-columns: none !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding: 0 0 5px !important;
+  }
+  .vg-mode-admin.vg-view-stats .vg-role-console-body > .narrow > .grid2:last-of-type::-webkit-scrollbar,
+  .vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow)::-webkit-scrollbar { display: none; }
+  .vg-mode-admin.vg-view-stats .vg-role-console-body > .narrow > .grid2:last-of-type > .card,
+  .vg-mode-admin.vg-view-stats .grid2:has(> .card .mrow) > .card {
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+    max-height: 330px !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+}
+
+/* Dashboard values should read like a product dashboard, never loose spreadsheet text. */
+.vg-role-mode-root .stat {
+  position: relative;
+  isolation: isolate;
+}
+.vg-role-mode-root .stat::after {
+  content: '';
+  position: absolute;
+  right: -22px;
+  top: -26px;
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--acc) 8%, transparent);
+  pointer-events: none;
+  z-index: -1;
+}
+.vg-role-mode-root .stat .n { max-width: 100%; }
+
+/* Long city/region/plan labels stay inside their cards. */
+.vg-role-mode-root .card,
+.vg-role-mode-root .mrow,
+.vg-role-mode-root .mrow > *,
+.vg-plan-card,
+.vg-current-plan { box-sizing: border-box; min-width: 0; }
+.vg-role-mode-root .mrow .nm,
+.vg-plan-audience,
+.vg-plan-feature span { overflow-wrap: anywhere; }
+
+/* Make the subscription comparison feel like a single premium product surface on phones. */
+@media (max-width: 560px) {
+  .vg-plan-section { margin-top: 18px; }
+  .vg-plan-section-head { align-items: flex-start; }
+  .vg-plan-card { border-radius: 18px; }
+  .vg-plan-features { margin-top: 12px; }
+  .vg-compare-row { font-size: 12px; }
+}
