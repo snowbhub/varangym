@@ -10,6 +10,7 @@ import { loadPlatformIdentity, platformAccess } from '../lib/platform-role.js'
 import { getRoleMode, roleRoute, setRoleMode } from '../lib/role-mode.js'
 import { confirmSheet } from '../sheets.jsx'
 
+const FRIENDLY={solo_monthly:'VARANGYM Solo Monthly',solo_lifetime:'VARANGYM Solo Lifetime',coach_5:'VARANGYM Coach Starter',coach_10:'VARANGYM Coach Pro',coach_20:'VARANGYM Coach Scale',business_5_50:'VARANGYM Business Studio',business_10_100:'VARANGYM Business Club'}
 const modeName=m=>m==='admin'?'Admin':m==='business'?'Business':m==='trainer'?'Coach':p('normalMode')
 const date=v=>{if(!v)return'';try{return new Date(v).toLocaleDateString(dateLocale())}catch{return''}}
 
@@ -17,12 +18,16 @@ export default function UnifiedSettings(){
   useLang()
   const nav=useNavigate()
   const user=useStore(s=>s.user)
+  const accent=useStore(s=>s.S.accent)
+  const update=useStore(s=>s.update)
   const signOut=useStore(s=>s.signOut)
   const signOutAll=useStore(s=>s.signOutAll)
   const [identity,setIdentity]=useState(null)
   const [mode,setModeState]=useState(()=>getRoleMode())
   const [subscriptions,setSubscriptions]=useState([])
 
+  // The old green is intentionally retired. Existing profiles are upgraded once and synced.
+  useEffect(()=>{if(!accent||accent==='lime')update(s=>{s.accent='varangym'})},[accent])
   useEffect(()=>{
     if(!user)return
     loadPlatformIdentity().then(setIdentity).catch(()=>{})
@@ -38,14 +43,13 @@ export default function UnifiedSettings(){
   const effectiveAccess={platformAdmin:!!(access.platformAdmin||user?.admin),business:!!access.business,trainer:!!access.trainer}
   const primary=useMemo(()=>subscriptions.find(x=>x.status==='trialing')||subscriptions.find(x=>x.status==='active')||subscriptions[0]||null,[subscriptions])
   const switchMode=next=>{setRoleMode(next);setModeState(next||null);nav(next?roleRoute(next,'home'):'/home',{replace:true})}
-  const subLabel=primary?.plan_metadata?.label||String(primary?.plan_code||'').replaceAll('_',' ')||p('noPlan')
+  const subLabel=primary?.plan_metadata?.label||FRIENDLY[primary?.plan_code]||p('noPlan')
   const subNote=primary?.status==='trialing'&&primary?.trial_ends_at?p('trialUntil',date(primary.trial_ends_at)):primary?.status==='active'&&primary?.current_period_end?p('paidUntil',date(primary.current_period_end)):primary?.status==='active'?p('active'):p('choosePlan')
   const logout=()=>confirmSheet({title:p('logoutConfirm'),confirmText:p('yesSignOut'),danger:true,onConfirm:()=>{signOut();setRoleMode(null);nav('/home')}})
   const logoutAll=()=>confirmSheet({title:p('logoutAllConfirm'),confirmText:p('yesSignOutAll'),danger:true,onConfirm:async()=>{try{await signOutAll()}finally{setRoleMode(null);nav('/home')}}})
 
   return <div className="narrow vg-unified-settings">
     <div className="hdr"><div style={{flex:1}}><h1>{p('settings')}</h1><div className="sub">{p('mode')}: {modeName(mode)} · VARANGYM</div></div></div>
-
     {user&&<Section title={p('account')}>
       <Row icon="personCircle" iconTint="var(--grey)" title={user.name||identity?.user?.display_name||'VARANGYM'} subtitle={mode?p('roleModeActive',modeName(mode)):p('profileMode')} />
       <Row icon="house" iconTint="var(--acc)" title={p('normalMode')} subtitle={t('My workouts, plan, stats and exercises')} accessory={!mode?'check':'chevron'} onClick={()=>switchMode(null)}/>
@@ -56,7 +60,6 @@ export default function UnifiedSettings(){
       <Row icon="signOut" iconTint="var(--red)" title={p('signOut')} danger onClick={logout}/>
       <Row icon="shield" iconTint="var(--red)" title={p('signOutAll')} subtitle={t('Ends this profile’s sessions on all your devices.')} danger onClick={logoutAll}/>
     </Section>}
-
     <div className="vg-settings-legacy"><Settings/></div>
     <style>{`
       .vg-unified-settings>.vg-settings-legacy>.narrow{padding-top:0!important;max-width:none!important}
