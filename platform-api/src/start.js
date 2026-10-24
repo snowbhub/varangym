@@ -22,7 +22,6 @@ const children = [];
 async function prepareDatabase() {
   console.log('[varangym] preparing database before service startup');
   await migrate();
-  await closeDb();
   console.log('[varangym] database migrations ready');
 }
 
@@ -41,7 +40,9 @@ function shutdown(reason, code = 0) {
 
   const finish = () => {
     stopChildren(reason === 'SIGINT' ? 'SIGINT' : 'SIGTERM');
-    setTimeout(() => process.exit(code), 250).unref();
+    closeDb()
+      .catch(() => {})
+      .finally(() => setTimeout(() => process.exit(code), 250).unref());
   };
 
   if (gateway?.listening) gateway.close(finish);
